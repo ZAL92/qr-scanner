@@ -183,11 +183,9 @@
     let acceptedCount = 0;
     let rejectedCount = 0;
 
-    // مهلة منع التكرار السريع (3 ثوانٍ)
     let isProcessing = false; 
     const SCAN_DELAY = 3000;  
 
-    // نظام المؤثرات الصوتية
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(type) {
       if (audioCtx.state === 'suspended') { audioCtx.resume(); }
@@ -213,12 +211,7 @@
 
     function startAutoCamera() {
       html5QrCode = new Html5Qrcode("reader");
-
-      const config = {
-        fps: 8, // سرعة مسح أهدأ وأكثر تركيزاً
-        qrbox: { width: 220, height: 220 },
-        aspectRatio: 1.0
-      };
+      const config = { fps: 8, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 };
 
       html5QrCode.start(
         { facingMode: "environment" }, 
@@ -233,7 +226,6 @@
       if (isProcessing) return;
       isProcessing = true;
 
-      // تفكيك نص الكود وحساب الضيوف المسموحين
       let parsedData = parseDecodedData(decodedText);
       let name = parsedData.name;
       let maxAllowed = parsedData.maxAllowed; 
@@ -243,7 +235,6 @@
       const readerWrapper = document.getElementById('reader-wrapper');
       resultBox.style.display = 'block';
 
-      // حساب عدد مرات المسح السابقة لهذا الاسم
       let currentCount = (entryTracker[name] || 0) + 1;
 
       if (currentCount <= maxAllowed) {
@@ -292,22 +283,42 @@
       }, SCAN_DELAY);
     }
 
-    // --- 🛠️ الفنكشن المعدلة لاستخراج الأرقام المفتوحة (1, 2, 3, 4...) ---
+    // --- 🚀 التحديث الذكي الجذري لقراءة أي صيغة للباركود ---
     function parseDecodedData(text) {
-      let parts = text.split('|');
-      let name = parts[0] ? parts[0].trim() : text.trim();
-      let maxAllowed = 1; // الافتراضي لشخص واحد في حال لم يكتب رقم
+      let maxAllowed = 1; // الافتراضي
+      let name = text.trim();
 
+      // 1. تقسيم النص بأي فاصل ممكن (شرطة، فاصلة، خط واقف، أو سطر جديد)
+      let parts = text.split(/\||-|,|\n/);
+      
       if (parts.length > 1) {
-        // استخراج أي رقم صحيح مكتوب في الجزء الثاني من الكود
-        let extractedNumber = parseInt(parts[1].trim(), 10);
-        if (!isNaN(extractedNumber) && extractedNumber > 0) {
-          maxAllowed = extractedNumber; // يأخذ الرقم المكتوب بالضبط بدون حدود (1، 2، 3... إلخ)
-        }
+          name = parts[0].trim(); // الجزء الأول هو الاسم دائماً
+          
+          // نبحث في الجزء الأخير عن أي رقم موجود
+          let lastPart = parts[parts.length - 1];
+          let numMatch = lastPart.match(/\d+/); 
+          
+          if (numMatch) {
+              let extractedNum = parseInt(numMatch[0], 10);
+              if (extractedNum > 0) {
+                  maxAllowed = extractedNum; // اعتماد الرقم كعدد ضيوف
+              }
+          }
+      } else {
+          // 2. في حال كان مكتوب بدون فواصل (مثال: "أحمد محمد 3")
+          let match = text.match(/(.*?)\s+(\d+)\s*$/);
+          if (match) {
+              name = match[1].trim();
+              maxAllowed = parseInt(match[2], 10);
+          }
       }
+
+      // 3. تنظيف الاسم من الكلمات الزائدة (مثل: "الاسم:" أو "دعوة:")
+      name = name.replace(/^(الاسم|الضيف|اسم المدعو|عدد الضيوف|دعوة)\s*:\s*/i, '').trim();
 
       return { name: name, maxAllowed: maxAllowed };
     }
+    // --------------------------------------------------------
 
     function updateStats() {
       document.getElementById('totalAcceptedCount').innerText = acceptedCount;
@@ -336,12 +347,8 @@
 
     function downloadCSVReport() {
       if (scannedLogs.length === 0) return;
-
       let csvContent = "\uFEFFالاسم,الحالة,الوقت\n";
-      scannedLogs.forEach(log => {
-        csvContent += `"${log.name}","${log.status}","${log.time}"\n`;
-      });
-
+      scannedLogs.forEach(log => { csvContent += `"${log.name}","${log.status}","${log.time}"\n`; });
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -351,7 +358,7 @@
     }
 
     function clearReport() {
-      if (confirm("هل أنت تأكد من مسح كافة السجلات والإحصائيات؟")) {
+      if (confirm("هل أنت متأكد من مسح كافة السجلات والإحصائيات؟")) {
         scannedLogs = [];
         entryTracker = {};
         acceptedCount = 0;
@@ -363,9 +370,7 @@
       }
     }
 
-    window.onload = function() {
-      startAutoCamera();
-    };
+    window.onload = function() { startAutoCamera(); };
   </script>
 </body>
 </html>
