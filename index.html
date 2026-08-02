@@ -3,20 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>نظام فحص الباركود والتقرير - الدعوات</title>
+  <title>نظام فحص الباركود الذكي - إدارة الدعوات</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- مكتبة ماسح الباركود -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #121212;
+      background: #0d0d0d;
       color: #ffffff;
       font-family: 'Cairo', sans-serif;
-      padding: 20px 15px;
+      padding: 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -25,99 +26,163 @@
 
     .container {
       width: 100%;
-      max-width: 500px;
-      background: #1e1e1e;
-      border-radius: 16px;
+      max-width: 480px;
+      background: #181818;
+      border-radius: 20px;
       padding: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+      text-align: center;
+      border: 1px solid #2a2a2a;
+    }
+
+    h2 { color: #c9a24b; margin-bottom: 15px; font-size: 20px; font-weight: 800; }
+
+    /* شريط الإحصائيات السريع */
+    .stats-bar {
+      display: flex;
+      justify-content: space-between;
+      background: #222;
+      padding: 10px 15px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      border: 1px solid #333;
+    }
+
+    .stat-item {
       text-align: center;
     }
 
-    h2 { color: #c9a24b; margin-bottom: 15px; font-size: 22px; }
-
-    #reader {
-      width: 100%;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 2px solid #333;
-      margin-bottom: 15px;
+    .stat-item .num {
+      font-size: 18px;
+      font-weight: bold;
+      color: #c9a24b;
     }
 
+    .stat-item .label {
+      font-size: 11px;
+      color: #aaa;
+    }
+
+    /* منطقة الكاميرا والماسح */
+    #reader-wrapper {
+      position: relative;
+      width: 100%;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 3px solid #333;
+      margin-bottom: 15px;
+      background: #000;
+      transition: border-color 0.3s ease;
+    }
+
+    #reader { width: 100%; }
+
+    /* إخفاء القوائم غير المرغوبة من المكتبة تلقائياً */
+    #reader select, #reader button {
+      display: none !important;
+    }
+
+    /* كروت النتيجة */
     .result-card {
       padding: 15px;
-      border-radius: 10px;
+      border-radius: 12px;
       margin-top: 15px;
       font-weight: bold;
       display: none;
-      animation: fadeIn 0.3s ease-in-out;
+      font-size: 15px;
+      animation: pulse 0.3s ease-in-out;
     }
 
-    .success { background: #1b4332; color: #74c69d; border: 1px solid #2d6a4f; }
-    .warning { background: #0c4a6e; color: #38bdf8; border: 1px solid #0284c7; }
+    .success { background: #133a27; color: #52b788; border: 2px solid #2d6a4f; }
+    .warning { background: #0c3852; color: #38bdf8; border: 2px solid #0284c7; }
     .duplicate { background: #4a0e17; color: #ff8fa3; border: 2px solid #ff4d6d; }
 
     .btn {
       background: #c9a24b;
       color: #000;
       border: none;
-      padding: 12px 20px;
-      border-radius: 8px;
+      padding: 12px;
+      border-radius: 10px;
       font-weight: bold;
-      font-size: 15px;
+      font-size: 14px;
       cursor: pointer;
       width: 100%;
       margin-top: 10px;
+      transition: opacity 0.2s;
     }
 
+    .btn:active { opacity: 0.8; }
     .btn-excel { background: #2d6a4f; color: #fff; }
 
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
-      background: #252525;
-      border-radius: 8px;
+      background: #222;
+      border-radius: 10px;
       overflow: hidden;
     }
 
-    th, td { padding: 10px; text-align: center; border-bottom: 1px solid #333; font-size: 13px; }
-    th { background: #333; color: #c9a24b; }
+    th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid #333; font-size: 12px; }
+    th { background: #2d2d2d; color: #c9a24b; }
 
     .tag-success { color: #52b788; font-weight: bold; }
     .tag-warning { color: #38bdf8; font-weight: bold; }
     .tag-duplicate { color: #ff4d6d; font-weight: bold; }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-5px); }
-      to { opacity: 1; transform: translateY(0); }
+    @keyframes pulse {
+      0% { transform: scale(0.98); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <h2>📷 ماسح بطاقات الدخول</h2>
+    <h2>📷 نظام فحص الدخول المباشر</h2>
+
+    <!-- شريط إحصائيات الحضور اللحظي -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="num" id="totalAcceptedCount">0</div>
+        <div class="label">إجمالي المقبولين</div>
+      </div>
+      <div class="stat-item">
+        <div class="num" style="color:#ff4d6d;" id="totalRejectedCount">0</div>
+        <div class="label">المرفوض / المكرر</div>
+      </div>
+      <div class="stat-item">
+        <div class="num" style="color:#38bdf8;" id="totalScansCount">0</div>
+        <div class="label">إجمالي العمليات</div>
+      </div>
+    </div>
     
-    <div id="reader"></div>
+    <!-- إطار الكاميرا -->
+    <div id="reader-wrapper">
+      <div id="reader"></div>
+    </div>
+
+    <!-- كارت النتيجة -->
     <div id="resultBox" class="result-card"></div>
 
     <button id="downloadReportBtn" class="btn btn-excel" onclick="downloadCSVReport()" style="display: none;">
-      📥 تحميل تقرير الدخول (Excel / CSV)
+      📥 تحميل التقرير (Excel / CSV)
     </button>
-    <button class="btn" style="background:#444; color:#fff;" onclick="clearReport()">🗑️ مسح التقرير الحالي</button>
+    <button class="btn" style="background:#333; color:#ccc;" onclick="clearReport()">🗑️ إعادة تصفير السجل</button>
 
-    <div style="margin-top:25px; text-align:right;">
-      <h3 style="color: #c9a24b; font-size: 16px; margin-bottom: 5px;">📊 سجل الحضور الحالي:</h3>
+    <div style="margin-top:20px; text-align:right;">
+      <h3 style="color: #c9a24b; font-size: 14px; margin-bottom: 5px;">📊 السجل المباشر:</h3>
       <table>
         <thead>
           <tr>
             <th>الاسم</th>
-            <th>حالة الدخول</th>
+            <th>الحالة</th>
             <th>الوقت</th>
           </tr>
         </thead>
         <tbody id="reportTableBody">
-          <tr><td colspan="3" style="color:#777;">لا توجد عمليات دخول حتى الآن</td></tr>
+          <tr><td colspan="3" style="color:#666;">في انتظار أول عملية مسح...</td></tr>
         </tbody>
       </table>
     </div>
@@ -126,34 +191,86 @@
   <script>
     let scannedLogs = [];
     let entryTracker = {}; 
-    let html5QrcodeScanner;
+    let html5QrCode;
 
-    // مهلة منع التكرار السريع (3 ثوانٍ)
+    // متعديات الإحصائيات
+    let acceptedCount = 0;
+    let rejectedCount = 0;
+
+    // مهلة القفل المؤقت لمنع التكرار (3 ثوانٍ)
     let isProcessing = false; 
     const SCAN_DELAY = 3000;  
+
+    // --- 🔊 نظام المؤثرات الصوتية الفورية ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'success') {
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.25);
+      } else {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      }
+    }
+
+    // --- 📷 تشغيل الكاميرا الخلفية تلقائياً وبدقة عالية ---
+    function startAutoCamera() {
+      html5QrCode = new Html5Qrcode("reader");
+
+      const config = {
+        fps: 8, // تقليل عدد الفريمات لتقليل العشوائية وجعل القراءة أهدأ
+        qrbox: { width: 220, height: 220 }, // تحديد إطار المركز بالضبط
+        aspectRatio: 1.0
+      };
+
+      // اجبار النظام على الكاميرا الخلفية تلقائياً بدون أي خيارات
+      html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        onScanSuccess
+      ).catch(err => {
+        console.error("تعذر فتح الكاميرا الخلفية تلقائياً:", err);
+      });
+    }
 
     function onScanSuccess(decodedText, decodedResult) {
       if (isProcessing) return;
       isProcessing = true;
 
-      // تفكيك الكود واستخراج الاسم والعدد المسموح المكتوب في الباركود بدقة
       let parsedData = parseDecodedData(decodedText);
       let name = parsedData.name;
       let maxAllowed = parsedData.maxAllowed; 
 
       let currentTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const resultBox = document.getElementById('resultBox');
+      const readerWrapper = document.getElementById('reader-wrapper');
       resultBox.style.display = 'block';
 
-      // حساب عدد مرات الدخول
       let currentCount = (entryTracker[name] || 0) + 1;
 
       if (currentCount <= maxAllowed) {
         entryTracker[name] = currentCount;
+        acceptedCount++;
+        playSound('success');
+
+        readerWrapper.style.borderColor = "#2d6a4f"; // تلوين إطار الكاميرا بالأخضر
 
         if (maxAllowed === 1) {
           resultBox.className = "result-card success";
-          resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(مسموح شخص واحد فقط - 1/1)`;
+          resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(دعوة فردية - 1/1)`;
         } else {
           resultBox.className = "result-card warning";
           resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount} من ${maxAllowed})</strong><br>الاسم: ${name}`;
@@ -161,45 +278,55 @@
 
         scannedLogs.push({
           name: name,
-          status: `دخول مقبول (${currentCount}/${maxAllowed})`,
+          status: `مقبول (${currentCount}/${maxAllowed})`,
           time: currentTime
         });
       } else {
-        // تجاوز العدد المسموح به
+        rejectedCount++;
+        playSound('error');
+
+        readerWrapper.style.borderColor = "#ff4d6d"; // تلوين إطار الكاميرا بالأحمر
+
         resultBox.className = "result-card duplicate";
-        resultBox.innerHTML = `⚠️ <strong>تنبيه: تجاوز الحد المسموح!</strong><br>الاسم: ${name}<br>(هذه البطاقة مخصصة لـ ${maxAllowed} وأُستنفذت بالكامل)`;
+        resultBox.innerHTML = `⚠️ <strong>تنبيه: محاولة دخول مكررة!</strong><br>الاسم: ${name}<br>(هذه البطاقة استُخدمت بالكامل: ${maxAllowed}/${maxAllowed})`;
 
         scannedLogs.push({
           name: name,
-          status: `⚠️ محاولة دخول مكررة (مكتمل ${maxAllowed}/${maxAllowed})`,
+          status: `⚠️ مكرر (مكتمل ${maxAllowed}/${maxAllowed})`,
           time: currentTime
         });
       }
 
       updateReportTable();
+      updateStats();
       document.getElementById('downloadReportBtn').style.display = 'block';
 
+      // إعادة اللون الطبيعي وإتاحة الكاميرا مجدداً بعد 3 ثوانٍ
       setTimeout(() => {
+        readerWrapper.style.borderColor = "#333";
         isProcessing = false;
       }, SCAN_DELAY);
     }
 
     function parseDecodedData(text) {
-      // تفكيك النص المستخرج من QR Code
       let parts = text.split('|');
       let name = parts[0] ? parts[0].trim() : text.trim();
-      
-      // التعديل الجوهري: القراءة الدقيقة لعدد الأشخاص
-      let maxAllowed = 1; // الافتراضي هو شخص واحد للأمان
+      let maxAllowed = 1; // الافتراضي لشخص واحد لزيادة الأمان
       
       if (parts.length > 1) {
         let extractedNumber = parseInt(parts[1].trim());
         if (!isNaN(extractedNumber) && extractedNumber > 0) {
-          maxAllowed = extractedNumber; // يأخذ الرقم المكتوب في الباركود بالضبط (1 أو 2 أو غيره)
+          maxAllowed = extractedNumber; 
         }
       }
 
       return { name: name, maxAllowed: maxAllowed };
+    }
+
+    function updateStats() {
+      document.getElementById('totalAcceptedCount').innerText = acceptedCount;
+      document.getElementById('totalRejectedCount').innerText = rejectedCount;
+      document.getElementById('totalScansCount').innerText = scannedLogs.length;
     }
 
     function updateReportTable() {
@@ -207,14 +334,14 @@
       tbody.innerHTML = "";
 
       [...scannedLogs].reverse().forEach(log => {
-        let isDup = log.status.includes("مكررة");
+        let isDup = log.status.includes("مكرر");
         let statusClass = isDup ? "tag-duplicate" : (log.status.includes("1/1") ? "tag-success" : "tag-warning");
 
         let rowHtml = `
           <tr>
             <td><strong>${log.name}</strong></td>
             <td class="${statusClass}">${log.status}</td>
-            <td style="color:#aaa; font-size:12px;">${log.time}</td>
+            <td style="color:#aaa; font-size:11px;">${log.time}</td>
           </tr>
         `;
         tbody.insertAdjacentHTML('beforeend', rowHtml);
@@ -233,23 +360,26 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `تقرير_دخول_الضيوف.csv`;
+      link.download = `تقرير_حضور_الضيوف.csv`;
       link.click();
     }
 
     function clearReport() {
-      if (confirm("مسح السجل بالكامل؟")) {
+      if (confirm("هل أنت تأكد من مسح كافة السجلات والإحصائيات؟")) {
         scannedLogs = [];
         entryTracker = {};
-        document.getElementById('reportTableBody').innerHTML = `<tr><td colspan="3" style="color:#777;">لا توجد عمليات دخول حتى الآن</td></tr>`;
+        acceptedCount = 0;
+        rejectedCount = 0;
+        updateStats();
+        document.getElementById('reportTableBody').innerHTML = `<tr><td colspan="3" style="color:#666;">في انتظار أول عملية مسح...</td></tr>`;
         document.getElementById('resultBox').style.display = 'none';
         document.getElementById('downloadReportBtn').style.display = 'none';
       }
     }
 
+    // تشغيل الكاميرا التلقائي عند فتح الصفحة فوراً
     window.onload = function() {
-      html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
-      html5QrcodeScanner.render(onScanSuccess);
+      startAutoCamera();
     };
   </script>
 </body>
