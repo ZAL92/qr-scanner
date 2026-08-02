@@ -48,20 +48,9 @@
       border: 1px solid #333;
     }
 
-    .stat-item {
-      text-align: center;
-    }
-
-    .stat-item .num {
-      font-size: 18px;
-      font-weight: bold;
-      color: #c9a24b;
-    }
-
-    .stat-item .label {
-      font-size: 11px;
-      color: #aaa;
-    }
+    .stat-item { text-align: center; }
+    .stat-item .num { font-size: 18px; font-weight: bold; color: #c9a24b; }
+    .stat-item .label { font-size: 11px; color: #aaa; }
 
     /* منطقة الكاميرا والماسح */
     #reader-wrapper {
@@ -77,10 +66,8 @@
 
     #reader { width: 100%; }
 
-    /* إخفاء القوائم غير المرغوبة من المكتبة تلقائياً */
-    #reader select, #reader button {
-      display: none !important;
-    }
+    /* إخفاء القوائم والأزرار الافتراضية للمكتبة */
+    #reader select, #reader button { display: none !important; }
 
     /* كروت النتيجة */
     .result-card {
@@ -142,7 +129,7 @@
   <div class="container">
     <h2>📷 نظام فحص الدخول المباشر</h2>
 
-    <!-- شريط إحصائيات الحضور اللحظي -->
+    <!-- شريط الإحصائيات -->
     <div class="stats-bar">
       <div class="stat-item">
         <div class="num" id="totalAcceptedCount">0</div>
@@ -193,17 +180,15 @@
     let entryTracker = {}; 
     let html5QrCode;
 
-    // متعديات الإحصائيات
     let acceptedCount = 0;
     let rejectedCount = 0;
 
-    // مهلة القفل المؤقت لمنع التكرار (3 ثوانٍ)
+    // مهلة منع التكرار السريع (3 ثوانٍ)
     let isProcessing = false; 
     const SCAN_DELAY = 3000;  
 
-    // --- 🔊 نظام المؤثرات الصوتية الفورية ---
+    // نظام المؤثرات الصوتية
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
     function playSound(type) {
       if (audioCtx.state === 'suspended') { audioCtx.resume(); }
       const osc = audioCtx.createOscillator();
@@ -212,8 +197,8 @@
       gain.connect(audioCtx.destination);
 
       if (type === 'success') {
-        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1);
         gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
         osc.start();
         osc.stop(audioCtx.currentTime + 0.25);
@@ -226,17 +211,15 @@
       }
     }
 
-    // --- 📷 تشغيل الكاميرا الخلفية تلقائياً وبدقة عالية ---
     function startAutoCamera() {
       html5QrCode = new Html5Qrcode("reader");
 
       const config = {
-        fps: 8, // تقليل عدد الفريمات لتقليل العشوائية وجعل القراءة أهدأ
-        qrbox: { width: 220, height: 220 }, // تحديد إطار المركز بالضبط
+        fps: 8, // سرعة مسح أهدأ وأكثر تركيزاً
+        qrbox: { width: 220, height: 220 },
         aspectRatio: 1.0
       };
 
-      // اجبار النظام على الكاميرا الخلفية تلقائياً بدون أي خيارات
       html5QrCode.start(
         { facingMode: "environment" }, 
         config, 
@@ -250,6 +233,7 @@
       if (isProcessing) return;
       isProcessing = true;
 
+      // تفكيك نص الكود وحساب الضيوف المسموحين
       let parsedData = parseDecodedData(decodedText);
       let name = parsedData.name;
       let maxAllowed = parsedData.maxAllowed; 
@@ -259,6 +243,7 @@
       const readerWrapper = document.getElementById('reader-wrapper');
       resultBox.style.display = 'block';
 
+      // حساب عدد مرات المسح السابقة لهذا الاسم
       let currentCount = (entryTracker[name] || 0) + 1;
 
       if (currentCount <= maxAllowed) {
@@ -266,7 +251,7 @@
         acceptedCount++;
         playSound('success');
 
-        readerWrapper.style.borderColor = "#2d6a4f"; // تلوين إطار الكاميرا بالأخضر
+        readerWrapper.style.borderColor = "#2d6a4f"; 
 
         if (maxAllowed === 1) {
           resultBox.className = "result-card success";
@@ -285,10 +270,10 @@
         rejectedCount++;
         playSound('error');
 
-        readerWrapper.style.borderColor = "#ff4d6d"; // تلوين إطار الكاميرا بالأحمر
+        readerWrapper.style.borderColor = "#ff4d6d"; 
 
         resultBox.className = "result-card duplicate";
-        resultBox.innerHTML = `⚠️ <strong>تنبيه: محاولة دخول مكررة!</strong><br>الاسم: ${name}<br>(هذه البطاقة استُخدمت بالكامل: ${maxAllowed}/${maxAllowed})`;
+        resultBox.innerHTML = `⚠️ <strong>تنبيه: محاولة دخول مكررة!</strong><br>الاسم: ${name}<br>(تم استنفاذ كامل العدد المسموح: ${maxAllowed}/${maxAllowed})`;
 
         scannedLogs.push({
           name: name,
@@ -301,22 +286,23 @@
       updateStats();
       document.getElementById('downloadReportBtn').style.display = 'block';
 
-      // إعادة اللون الطبيعي وإتاحة الكاميرا مجدداً بعد 3 ثوانٍ
       setTimeout(() => {
         readerWrapper.style.borderColor = "#333";
         isProcessing = false;
       }, SCAN_DELAY);
     }
 
+    // --- 🛠️ الفنكشن المعدلة لاستخراج الأرقام المفتوحة (1, 2, 3, 4...) ---
     function parseDecodedData(text) {
       let parts = text.split('|');
       let name = parts[0] ? parts[0].trim() : text.trim();
-      let maxAllowed = 1; // الافتراضي لشخص واحد لزيادة الأمان
-      
+      let maxAllowed = 1; // الافتراضي لشخص واحد في حال لم يكتب رقم
+
       if (parts.length > 1) {
-        let extractedNumber = parseInt(parts[1].trim());
+        // استخراج أي رقم صحيح مكتوب في الجزء الثاني من الكود
+        let extractedNumber = parseInt(parts[1].trim(), 10);
         if (!isNaN(extractedNumber) && extractedNumber > 0) {
-          maxAllowed = extractedNumber; 
+          maxAllowed = extractedNumber; // يأخذ الرقم المكتوب بالضبط بدون حدود (1، 2، 3... إلخ)
         }
       }
 
@@ -377,7 +363,6 @@
       }
     }
 
-    // تشغيل الكاميرا التلقائي عند فتح الصفحة فوراً
     window.onload = function() {
       startAutoCamera();
     };
