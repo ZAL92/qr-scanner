@@ -7,7 +7,6 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <!-- مكتبة ماسح الباركود -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
@@ -37,7 +36,6 @@
 
     h2 { color: #c9a24b; margin-bottom: 15px; font-size: 20px; font-weight: 800; }
 
-    /* شريط الإحصائيات السريع */
     .stats-bar {
       display: flex;
       justify-content: space-between;
@@ -52,7 +50,6 @@
     .stat-item .num { font-size: 18px; font-weight: bold; color: #c9a24b; }
     .stat-item .label { font-size: 11px; color: #aaa; }
 
-    /* منطقة الكاميرا والماسح */
     #reader-wrapper {
       position: relative;
       width: 100%;
@@ -65,11 +62,8 @@
     }
 
     #reader { width: 100%; }
-
-    /* إخفاء القوائم والأزرار الافتراضية للمكتبة */
     #reader select, #reader button { display: none !important; }
 
-    /* كروت النتيجة */
     .result-card {
       padding: 15px;
       border-radius: 12px;
@@ -100,6 +94,7 @@
 
     .btn:active { opacity: 0.8; }
     .btn-excel { background: #2d6a4f; color: #fff; }
+    .btn-upload { background: #1d4ed8; color: #fff; }
 
     table {
       width: 100%;
@@ -129,8 +124,14 @@
   <div class="container">
     <h2>📷 نظام فحص الدخول المباشر</h2>
 
+    <!-- زر رفع ملف الأسماء المطابقة -->
+    <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="handleCSVUpload(event)">
+    <button class="btn btn-upload" onclick="document.getElementById('csvFileInput').click()">
+      📂 رفع كشف الأسماء المطابقة (CSV)
+    </button>
+
     <!-- شريط الإحصائيات -->
-    <div class="stats-bar">
+    <div class="stats-bar" style="margin-top: 15px;">
       <div class="stat-item">
         <div class="num" id="totalAcceptedCount">0</div>
         <div class="label">إجمالي المقبولين</div>
@@ -154,7 +155,7 @@
     <div id="resultBox" class="result-card"></div>
 
     <button id="downloadReportBtn" class="btn btn-excel" onclick="downloadCSVReport()" style="display: none;">
-      📥 تحميل التقرير (Excel / CSV)
+      📥 تحميل تقرير الحضور (Excel / CSV)
     </button>
     <button class="btn" style="background:#333; color:#ccc;" onclick="clearReport()">🗑️ إعادة تصفير السجل</button>
 
@@ -163,7 +164,7 @@
       <table>
         <thead>
           <tr>
-            <th>الاسم</th>
+            <th>الاسم المعتمد</th>
             <th>الحالة</th>
             <th>الوقت</th>
           </tr>
@@ -178,6 +179,7 @@
   <script>
     let scannedLogs = [];
     let entryTracker = {}; 
+    let guestDatabase = {}; // كشف الأسماء المرفوع من الإكسل
     let html5QrCode;
 
     let acceptedCount = 0;
@@ -209,6 +211,34 @@
       }
     }
 
+    // دالة رفع ملف CSV للأسماء المطابقة
+    function handleCSVUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const lines = evt.target.result.split('\n');
+        guestDatabase = {}; // تصفير الجدول القديم
+        let loadedCount = 0;
+
+        lines.forEach(line => {
+          let parts = line.split(',');
+          if (parts.length >= 2) {
+            let qrCodeKey = parts[0].trim();
+            let realName = parts[1].trim();
+            if (qrCodeKey && realName) {
+              guestDatabase[qrCodeKey] = realName;
+              loadedCount++;
+            }
+          }
+        });
+
+        alert(`✅ تم تحميل ${loadedCount} اسم بنجاح من الكشف!`);
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
     function startAutoCamera() {
       html5QrCode = new Html5Qrcode("reader");
       const config = { fps: 8, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 };
@@ -218,7 +248,7 @@
         config, 
         onScanSuccess
       ).catch(err => {
-        console.error("تعذر فتح الكاميرا الخلفية تلقائياً:", err);
+        console.error("تعذر فتح الكاميرا تلقائياً:", err);
       });
     }
 
@@ -227,7 +257,8 @@
       isProcessing = true;
 
       let parsedData = parseDecodedData(decodedText);
-      let name = parsedData.name;
+      let rawId = parsedData.rawId;       // المفتاح الفريد المميز للكود
+      let name = parsedData.displayName;   // الاسم المطابق من الكشف أو النص المفكك
       let maxAllowed = parsedData.maxAllowed; 
 
       let currentTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -235,10 +266,11 @@
       const readerWrapper = document.getElementById('reader-wrapper');
       resultBox.style.display = 'block';
 
-      let currentCount = (entryTracker[name] || 0) + 1;
+      // تتبع الدخول بناءً على الباركود الفريد
+      let currentCount = (entryTracker[rawId] || 0) + 1;
 
       if (currentCount <= maxAllowed) {
-        entryTracker[name] = currentCount;
+        entryTracker[rawId] = currentCount;
         acceptedCount++;
         playSound('success');
 
@@ -283,42 +315,42 @@
       }, SCAN_DELAY);
     }
 
-    // --- 🚀 التحديث الذكي الجذري لقراءة أي صيغة للباركود ---
+    // --- 🔑 الحل الجذري لتفادي تضارب الباركودات المختلفة ---
     function parseDecodedData(text) {
-      let maxAllowed = 1; // الافتراضي
-      let name = text.trim();
+      let rawText = text.trim();
+      let maxAllowed = 1;
+      let nameCandidate = rawText;
 
-      // 1. تقسيم النص بأي فاصل ممكن (شرطة، فاصلة، خط واقف، أو سطر جديد)
-      let parts = text.split(/\||-|,|\n/);
-      
+      // 1. البحث عن أي رقم في النص ليكون هو عدد الضيوف
+      let parts = rawText.split(/\||-|,|\n/);
       if (parts.length > 1) {
-          name = parts[0].trim(); // الجزء الأول هو الاسم دائماً
-          
-          // نبحث في الجزء الأخير عن أي رقم موجود
-          let lastPart = parts[parts.length - 1];
-          let numMatch = lastPart.match(/\d+/); 
-          
-          if (numMatch) {
-              let extractedNum = parseInt(numMatch[0], 10);
-              if (extractedNum > 0) {
-                  maxAllowed = extractedNum; // اعتماد الرقم كعدد ضيوف
-              }
-          }
+        nameCandidate = parts[0].trim();
+        let lastPart = parts[parts.length - 1];
+        let numMatch = lastPart.match(/\d+/);
+        if (numMatch) {
+          let num = parseInt(numMatch[0], 10);
+          if (num > 0) maxAllowed = num;
+        }
       } else {
-          // 2. في حال كان مكتوب بدون فواصل (مثال: "أحمد محمد 3")
-          let match = text.match(/(.*?)\s+(\d+)\s*$/);
-          if (match) {
-              name = match[1].trim();
-              maxAllowed = parseInt(match[2], 10);
-          }
+        let match = rawText.match(/(.*?)\s+(\d+)\s*$/);
+        if (match) {
+          nameCandidate = match[1].trim();
+          maxAllowed = parseInt(match[2], 10);
+        }
       }
 
-      // 3. تنظيف الاسم من الكلمات الزائدة (مثل: "الاسم:" أو "دعوة:")
-      name = name.replace(/^(الاسم|الضيف|اسم المدعو|عدد الضيوف|دعوة)\s*:\s*/i, '').trim();
+      // تنظيف الاسم من التسميات الزائدة
+      nameCandidate = nameCandidate.replace(/^(الاسم|الضيف|اسم المدعو|عدد الضيوف|دعوة)\s*:\s*/i, '').trim();
 
-      return { name: name, maxAllowed: maxAllowed };
+      // 2. إذا كان هنالك كشف أسماء مرفوع مطبق، نأخذ الاسم الحقيقي منه فوراً
+      let finalDisplayName = guestDatabase[rawText] || guestDatabase[nameCandidate] || nameCandidate;
+
+      return {
+        rawId: rawText,                // النص الكامل لمنع التضارب بين الباركودات
+        displayName: finalDisplayName, // الاسم الذي سيظهر في السجل والتقرير
+        maxAllowed: maxAllowed         // عدد الضيوف
+      };
     }
-    // --------------------------------------------------------
 
     function updateStats() {
       document.getElementById('totalAcceptedCount').innerText = acceptedCount;
@@ -347,7 +379,7 @@
 
     function downloadCSVReport() {
       if (scannedLogs.length === 0) return;
-      let csvContent = "\uFEFFالاسم,الحالة,الوقت\n";
+      let csvContent = "\uFEFFالاسم المعتمد,الحالة,الوقت\n";
       scannedLogs.forEach(log => { csvContent += `"${log.name}","${log.status}","${log.time}"\n`; });
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
