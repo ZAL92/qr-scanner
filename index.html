@@ -125,39 +125,35 @@
 
   <script>
     let scannedLogs = [];
-    // الخريطة لتتبع عدد مرات المسح لكل دعوة { 'اسم المدعو': عدد_مرات_الدخول }
     let entryTracker = {}; 
     let html5QrcodeScanner;
 
-    // --- 🛑 إضافة متغيرات القفل والتأخير لمنع التكرار السريع ---
-    let isProcessing = false; // متغيرة تتبع ما إذا كان النظام يستريح بعد القراءة
-    const SCAN_DELAY = 3000;  // المهلة الزمنية: 3000 ملي ثانية (3 ثوانٍ)
+    // مهلة منع التكرار السريع (3 ثوانٍ)
+    let isProcessing = false; 
+    const SCAN_DELAY = 3000;  
 
     function onScanSuccess(decodedText, decodedResult) {
-      // إذا كان النظام مستنفرًا وفي حالة مهلة زمنيّة، اسحب على أي قراءة جديدة فوراً
       if (isProcessing) return;
-
-      // تفعيل القفل لمنع دخول أي قراءة أخرى أثناء الـ 3 ثوانٍ
       isProcessing = true;
 
-      // افتراض قراءة الكود والحد الأقصى للضيوف (محددة بـ 2 كحد أقصى)
+      // تفكيك الكود واستخراج الاسم والعدد المسموح المكتوب في الباركود بدقة
       let parsedData = parseDecodedData(decodedText);
       let name = parsedData.name;
-      let maxAllowed = parsedData.maxAllowed; // 1 أو 2
+      let maxAllowed = parsedData.maxAllowed; 
 
       let currentTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const resultBox = document.getElementById('resultBox');
       resultBox.style.display = 'block';
 
-      // حساب عدد مرات الدخول السابقة
+      // حساب عدد مرات الدخول
       let currentCount = (entryTracker[name] || 0) + 1;
 
       if (currentCount <= maxAllowed) {
         entryTracker[name] = currentCount;
 
-        if (currentCount === 1 && maxAllowed === 1) {
+        if (maxAllowed === 1) {
           resultBox.className = "result-card success";
-          resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(دخول شخص واحد)`;
+          resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(مسموح شخص واحد فقط - 1/1)`;
         } else {
           resultBox.className = "result-card warning";
           resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount} من ${maxAllowed})</strong><br>الاسم: ${name}`;
@@ -165,13 +161,13 @@
 
         scannedLogs.push({
           name: name,
-          status: `دخول مقبولة (${currentCount}/${maxAllowed})`,
+          status: `دخول مقبول (${currentCount}/${maxAllowed})`,
           time: currentTime
         });
       } else {
-        // إذا تجاوز العدد المسموح به
+        // تجاوز العدد المسموح به
         resultBox.className = "result-card duplicate";
-        resultBox.innerHTML = `⚠️ <strong>تنبيه: تجاوز الحد المسموح!</strong><br>الاسم: ${name}<br>(تم استنفاذ دخول ${maxAllowed} أشخاص من قبل)`;
+        resultBox.innerHTML = `⚠️ <strong>تنبيه: تجاوز الحد المسموح!</strong><br>الاسم: ${name}<br>(هذه البطاقة مخصصة لـ ${maxAllowed} وأُستنفذت بالكامل)`;
 
         scannedLogs.push({
           name: name,
@@ -183,19 +179,25 @@
       updateReportTable();
       document.getElementById('downloadReportBtn').style.display = 'block';
 
-      // --- ⏳ إعادة فتح القفل وإتاحة السكانر للبطاقة التالية بعد 3 ثوانٍ ---
       setTimeout(() => {
         isProcessing = false;
       }, SCAN_DELAY);
     }
 
     function parseDecodedData(text) {
-      // تفكيك النص لمعرفة الاسم والعدد
+      // تفكيك النص المستخرج من QR Code
       let parts = text.split('|');
       let name = parts[0] ? parts[0].trim() : text.trim();
-      let maxAllowed = parts[1] ? parseInt(parts[1]) : 2; // افتراضي شخصين كحد أقصى
-      if (isNaN(maxAllowed) || maxAllowed < 1) maxAllowed = 1;
-      if (maxAllowed > 2) maxAllowed = 2; // أقصى حد شخصين
+      
+      // التعديل الجوهري: القراءة الدقيقة لعدد الأشخاص
+      let maxAllowed = 1; // الافتراضي هو شخص واحد للأمان
+      
+      if (parts.length > 1) {
+        let extractedNumber = parseInt(parts[1].trim());
+        if (!isNaN(extractedNumber) && extractedNumber > 0) {
+          maxAllowed = extractedNumber; // يأخذ الرقم المكتوب في الباركود بالضبط (1 أو 2 أو غيره)
+        }
+      }
 
       return { name: name, maxAllowed: maxAllowed };
     }
