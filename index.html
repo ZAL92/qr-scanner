@@ -7,7 +7,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-  
+
   <!-- مكتبة QrCode الأساسية المستقرة -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
@@ -55,6 +55,18 @@
       border: 2px solid #c9a24b;
       background: #000;
     }
+    .camera-error {
+      display: none;
+      background: #4a0e17;
+      color: #ff8fa3;
+      border: 1px solid #ff4d6d;
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 10px;
+      font-size: 13px;
+      text-align: right;
+      line-height: 1.6;
+    }
     .result-card {
       padding: 12px;
       border-radius: 10px;
@@ -69,6 +81,7 @@
       border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;
       width: 100%; margin-top: 10px;
     }
+    .btn-retry { background: #2563eb; color: #fff; }
     .btn-excel { background: #2d6a4f; color: #fff; }
     .btn-clear { background: #9a031e; color: #fff; }
     table {
@@ -86,7 +99,7 @@
   <div class="container">
     <h2>📷 ماسح بطاقات الدخول</h2>
     <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة (مباشر)</div>
-    
+
     <div class="visitors-counter-card">
       <div class="visitors-title">👥 عدد الزوار الداخلين حتى الآن</div>
       <div class="visitors-count" id="totalVisitorsCount">0</div>
@@ -94,6 +107,10 @@
 
     <!-- شاشة الكاميرا المباشرة -->
     <div id="reader"></div>
+    <div id="cameraError" class="camera-error"></div>
+    <button id="retryBtn" class="btn btn-retry" onclick="startScanner()" style="display:none;">
+      🔄 إعادة محاولة تشغيل الكاميرا
+    </button>
     <div id="resultBox" class="result-card"></div>
 
     <button id="downloadReportBtn" class="btn btn-excel" onclick="downloadCSVReport()" style="display: none;">
@@ -133,7 +150,7 @@
     const db = firebase.firestore();
 
     let scannedLogs = [];
-    let entryTracker = {}; 
+    let entryTracker = {};
     let html5QrCode = null;
     let isProcessing = false;
 
@@ -261,25 +278,92 @@
       }
     }
 
-    // إعدادات تشغيل قياسية ومتوافقة 100% مع iOS Safari وأندرويد
+    function showCameraError(message) {
+      const box = document.getElementById('cameraError');
+      box.style.display = 'block';
+      box.innerHTML = "⚠️ " + message;
+      document.getElementById('retryBtn').style.display = 'block';
+    }
+
+    function hideCameraError() {
+      document.getElementById('cameraError').style.display = 'none';
+      document.getElementById('retryBtn').style.display = 'none';
+    }
+
+    // إعداد qrbox نسبي بدل رقم ثابت - هذا هو السبب الأشهر لتوقف القراءة
+    // على الشاشات الصغيرة أو الوضع الرأسي بالموبايل
+    function dynamicQrbox(viewfinderWidth, viewfinderHeight) {
+      const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+      const size = Math.floor(minEdge * 0.7);
+      return { width: size, height: size };
+    }
+
+    const cameraConfig = {
+      fps: 10,
+      qrbox: dynamicQrbox,
+      aspectRatio: 1.0
+    };
+
+    async function startScanner() {
+      hideCameraError();
+
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        showCameraError("لازم تفتح الصفحة عبر رابط HTTPS حتى تشتغل الكاميرا (المتصفحات تمنع الكاميرا على HTTP).");
+        return;
+      }
+
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+      }
+
+      try {
+        const devices = await Html5Qrcode.getCameras();
+
+        if (!devices || devices.length === 0) {
+          showCameraError("ما فيه أي كاميرا متاحة على هذا الجهاز.");
+          return;
+        }
+
+        // البحث عن الكاميرا الخلفية عن طريق الاسم، وإلا نستخدم آخر كاميرا بالقائمة
+        // (غالباً الكاميرا الخلفية تكون آخر واحدة بقوائم الموبايلات)
+        let selectedCamera = devices.find(d => /back|rear|environment|خلفي/i.test(d.label));
+        if (!selectedCamera) selectedCamera = devices[devices.length - 1];
+
+        await html5QrCode.start(
+          selectedCamera.id,
+          cameraConfig,
+          onScanSuccess
+        );
+
+      } catch (err) {
+        console.error("خطأ تشغيل الكاميرا:", err);
+
+        // محاولة بديلة عبر facingMode لو فشل التعداد المباشر
+        try {
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            cameraConfig,
+            onScanSuccess
+          );
+          hideCameraError();
+        } catch (err2) {
+          console.error("فشلت المحاولة البديلة:", err2);
+          let msg = "تعذر تشغيل الكاميرا. ";
+          if (err2 && err2.toString().includes("NotAllowedError")) {
+            msg += "يبدو إنك رفضت إذن الكاميرا - افتح إعدادات المتصفح واسمح بالوصول للكاميرا.";
+          } else if (err2 && err2.toString().includes("NotFoundError")) {
+            msg += "ما تم العثور على كاميرا مناسبة بالجهاز.";
+          } else {
+            msg += "جرب إغلاق أي تطبيق ثاني يستخدم الكاميرا وأعد المحاولة.";
+          }
+          showCameraError(msg);
+        }
+      }
+    }
+
     window.onload = function() {
       listenToCloudDatabase();
-
-      html5QrCode = new Html5Qrcode("reader");
-
-      const cameraConfig = { 
-        fps: 15,
-        qrbox: { width: 230, height: 230 }
-      };
-
-      // استخدام إعداد الكاميرا الخلفية النقي المتوافق مع أبل وأندرويد
-      html5QrCode.start(
-        { facingMode: "environment" }, 
-        cameraConfig, 
-        onScanSuccess
-      ).catch(e => {
-        console.error("خطأ تشغيل الكاميرا:", e);
-      });
+      startScanner();
     };
   </script>
 </body>
