@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ماسح الباركود - الميعاد</title>
+  <title>ماسح بطاقات الدخول - الميعاد</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   
-  <!-- مكتبة مسح الباركود الخفيفة -->
+  <!-- مكتبة الباركود السريعة -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- مكتبات Firebase -->
@@ -17,7 +17,6 @@
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       background: #121212;
       color: #ffffff;
@@ -28,7 +27,6 @@
       align-items: center;
       min-height: 100vh;
     }
-
     .container {
       width: 100%;
       max-width: 480px;
@@ -38,10 +36,8 @@
       box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       text-align: center;
     }
-
     h2 { color: #c9a24b; margin-bottom: 5px; font-size: 20px; }
     .cloud-status { font-size: 12px; color: #52b788; margin-bottom: 12px; font-weight: bold; }
-
     .visitors-counter-card {
       background: linear-gradient(135deg, #1f2937, #111827);
       border: 2px solid #c9a24b;
@@ -49,19 +45,16 @@
       padding: 12px;
       margin-bottom: 12px;
     }
-
     .visitors-title { font-size: 13px; color: #d1d5db; }
     .visitors-count { font-size: 34px; font-weight: 800; color: #c9a24b; line-height: 1.1; }
-
     #reader {
       width: 100%;
-      min-height: 280px;
+      min-height: 250px;
       border-radius: 12px;
       overflow: hidden;
       border: 2px solid #333;
       background: #000;
     }
-
     .result-card {
       padding: 12px;
       border-radius: 10px;
@@ -69,39 +62,22 @@
       font-weight: bold;
       display: none;
     }
-
     .success { background: #1b4332; color: #74c69d; border: 1px solid #2d6a4f; }
     .warning { background: #0c4a6e; color: #38bdf8; border: 1px solid #0284c7; }
     .duplicate { background: #4a0e17; color: #ff8fa3; border: 2px solid #ff4d6d; }
-
     .btn {
-      background: #c9a24b;
-      color: #000;
-      border: none;
-      padding: 12px;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 14px;
-      cursor: pointer;
-      width: 100%;
-      margin-top: 10px;
+      background: #c9a24b; color: #000; border: none; padding: 12px;
+      border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;
+      width: 100%; margin-top: 10px;
     }
-
     .btn-excel { background: #2d6a4f; color: #fff; }
     .btn-clear { background: #9a031e; color: #fff; }
-
     table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      background: #252525;
-      border-radius: 8px;
-      overflow: hidden;
+      width: 100%; border-collapse: collapse; margin-top: 10px;
+      background: #252525; border-radius: 8px; overflow: hidden;
     }
-
     th, td { padding: 8px; text-align: center; border-bottom: 1px solid #333; font-size: 12px; }
     th { background: #333; color: #c9a24b; }
-
     .tag-success { color: #52b788; font-weight: bold; }
     .tag-warning { color: #38bdf8; font-weight: bold; }
     .tag-duplicate { color: #ff4d6d; font-weight: bold; }
@@ -111,14 +87,14 @@
 
   <div class="container">
     <h2>📷 ماسح بطاقات الدخول</h2>
-    <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة</div>
+    <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة (مباشر)</div>
     
     <div class="visitors-counter-card">
       <div class="visitors-title">👥 عدد الزوار الداخلين حتى الآن</div>
       <div class="visitors-count" id="totalVisitorsCount">0</div>
     </div>
 
-    <!-- مكان تشغيل كاميرا الجوال -->
+    <!-- شاشة الكاميرا -->
     <div id="reader"></div>
     <div id="resultBox" class="result-card"></div>
 
@@ -163,7 +139,7 @@
     let html5QrCode = null;
     let isProcessing = false;
 
-    // 1. مزامنة قاعدة البيانات والسحابة
+    // المزامنة مع السحابة
     function listenToCloudDatabase() {
       db.collection("event_scans").orderBy("timestamp", "asc").onSnapshot((snapshot) => {
         scannedLogs = [];
@@ -185,13 +161,13 @@
         updateReportTable();
         document.getElementById('downloadReportBtn').style.display = scannedLogs.length > 0 ? 'block' : 'none';
       }, (error) => {
-        console.error(error);
-        document.getElementById('cloudStatusText').innerText = "❌ خطأ بالاتصال";
+        console.error("خطأ في الاتصال بالسحابة:", error);
+        document.getElementById('cloudStatusText').innerText = "❌ خطأ بالاتصال بالـ Firebase (افحص الـ Rules)";
         document.getElementById('cloudStatusText').style.color = "#ff4d6d";
       });
     }
 
-    // 2. معالجة المسح المباشر ومنع التعليق
+    // معالجة المسح المباشر مع حماية من التعليق
     async function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
@@ -220,8 +196,8 @@
           statusText = `⚠️ محاولة مكررة (${maxAllowed}/${maxAllowed})`;
         }
 
-        // الحفظ في السحابة
-        await db.collection("event_scans").add({
+        // حفظ القراءة في السحابة مع مهلة أقصاها 3 ثوان لمنع التعليق
+        const savePromise = db.collection("event_scans").add({
           name: name,
           status: statusText,
           time: currentTime,
@@ -229,13 +205,22 @@
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Firebase Timeout")), 3500)
+        );
+
+        await Promise.race([savePromise, timeoutPromise]);
+
       } catch (e) {
-        console.error(e);
+        console.warn("تنبيه الحفظ:", e.message);
+        if(e.message === "Firebase Timeout") {
+          alert("تنبيه: السحابة بطيئة، يرجى التأكد من شبكة الإنترنت أو تفعيل الـ Rules في Firebase.");
+        }
       } finally {
-        // إعادة استجابة القارئ بعد ثانية واحدة فوراً
+        // فك تعليق القارئ بعد 1.2 ثانية فوراً
         setTimeout(() => {
           isProcessing = false;
-        }, 1000);
+        }, 1200);
       }
     }
 
@@ -252,7 +237,7 @@
       tbody.innerHTML = "";
 
       if (scannedLogs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="color:#777;">لا توجد سجلات</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" style="color:#777;">لا توجد سجلات بعد</td></tr>`;
         return;
       }
 
@@ -286,7 +271,7 @@
     }
 
     async function clearReport() {
-      if (confirm("مسح كافة بيانات الدخول وتصفير السجل؟")) {
+      if (confirm("هل أنت تأكد من مسح كافة بيانات الدخول وتصفير السجل؟")) {
         try {
           const snapshot = await db.collection("event_scans").get();
           const batch = db.batch();
@@ -301,29 +286,19 @@
       }
     }
 
-    // 3. تشغيل الكاميرا الخلفية للجوال فوراً وتلقائياً
+    // تشغيل الكاميرا الخلفية تلقائياً وبشكل مباشر للجوال
     window.onload = function() {
       listenToCloudDatabase();
 
       html5QrCode = new Html5Qrcode("reader");
-      
-      const cameraConfig = { 
-        fps: 15, 
-        qrbox: { width: 220, height: 220 } 
-      };
+      const cameraConfig = { fps: 15, qrbox: { width: 220, height: 220 } };
 
-      // إجبار الكاميرا الخلفية مباشرة دون خيارات
       html5QrCode.start(
-        { facingMode: { exact: "environment" } }, 
+        { facingMode: "environment" }, 
         cameraConfig, 
         onScanSuccess
-      ).catch(err => {
-        // خيار احتياطي في حال رفض نظام أندرويد كلمة exact
-        html5QrCode.start(
-          { facingMode: "environment" }, 
-          cameraConfig, 
-          onScanSuccess
-        ).catch(e => console.error("تعذر فتح الكاميرا:", e));
+      ).catch(e => {
+        console.error("خطأ تشغيل الكاميرا:", e);
       });
     };
   </script>
