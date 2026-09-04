@@ -8,10 +8,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   
-  <!-- مكتبة مسح الباركود المحدثة والسريعة -->
+  <!-- مكتبة مسح الباركود الخفيفة -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
-  <!-- مكتبات Firebase السحابية -->
+  <!-- مكتبات Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
@@ -22,7 +22,7 @@
       background: #121212;
       color: #ffffff;
       font-family: 'Cairo', sans-serif;
-      padding: 20px 15px;
+      padding: 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -31,59 +31,43 @@
 
     .container {
       width: 100%;
-      max-width: 500px;
+      max-width: 480px;
       background: #1e1e1e;
       border-radius: 16px;
-      padding: 20px;
+      padding: 15px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       text-align: center;
     }
 
-    h2 { color: #c9a24b; margin-bottom: 5px; font-size: 22px; }
-    .cloud-status { font-size: 13px; color: #52b788; margin-bottom: 15px; font-weight: bold; }
+    h2 { color: #c9a24b; margin-bottom: 5px; font-size: 20px; }
+    .cloud-status { font-size: 12px; color: #52b788; margin-bottom: 12px; font-weight: bold; }
 
     .visitors-counter-card {
       background: linear-gradient(135deg, #1f2937, #111827);
       border: 2px solid #c9a24b;
       border-radius: 12px;
-      padding: 15px;
-      margin-bottom: 15px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 15px rgba(201, 162, 75, 0.2);
+      padding: 12px;
+      margin-bottom: 12px;
     }
 
-    .visitors-title {
-      font-size: 14px;
-      color: #d1d5db;
-      margin-bottom: 5px;
-    }
-
-    .visitors-count {
-      font-size: 36px;
-      font-weight: 800;
-      color: #c9a24b;
-      line-height: 1;
-    }
+    .visitors-title { font-size: 13px; color: #d1d5db; }
+    .visitors-count { font-size: 34px; font-weight: 800; color: #c9a24b; line-height: 1.1; }
 
     #reader {
       width: 100%;
+      min-height: 280px;
       border-radius: 12px;
       overflow: hidden;
       border: 2px solid #333;
-      margin-bottom: 15px;
       background: #000;
     }
 
     .result-card {
-      padding: 15px;
+      padding: 12px;
       border-radius: 10px;
-      margin-top: 15px;
+      margin-top: 12px;
       font-weight: bold;
       display: none;
-      animation: fadeIn 0.3s ease-in-out;
     }
 
     .success { background: #1b4332; color: #74c69d; border: 1px solid #2d6a4f; }
@@ -94,10 +78,10 @@
       background: #c9a24b;
       color: #000;
       border: none;
-      padding: 12px 20px;
+      padding: 12px;
       border-radius: 8px;
       font-weight: bold;
-      font-size: 15px;
+      font-size: 14px;
       cursor: pointer;
       width: 100%;
       margin-top: 10px;
@@ -115,50 +99,46 @@
       overflow: hidden;
     }
 
-    th, td { padding: 10px; text-align: center; border-bottom: 1px solid #333; font-size: 13px; }
+    th, td { padding: 8px; text-align: center; border-bottom: 1px solid #333; font-size: 12px; }
     th { background: #333; color: #c9a24b; }
 
     .tag-success { color: #52b788; font-weight: bold; }
     .tag-warning { color: #38bdf8; font-weight: bold; }
     .tag-duplicate { color: #ff4d6d; font-weight: bold; }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-5px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
   </style>
 </head>
 <body>
 
   <div class="container">
     <h2>📷 ماسح بطاقات الدخول</h2>
-    <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة (جاهز للعمل)</div>
+    <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة</div>
     
     <div class="visitors-counter-card">
-      <div class="visitors-title">👥 إجمالي عدد الزوار الداخلين حتى الآن</div>
+      <div class="visitors-title">👥 عدد الزوار الداخلين حتى الآن</div>
       <div class="visitors-count" id="totalVisitorsCount">0</div>
     </div>
 
+    <!-- مكان تشغيل كاميرا الجوال -->
     <div id="reader"></div>
     <div id="resultBox" class="result-card"></div>
 
     <button id="downloadReportBtn" class="btn btn-excel" onclick="downloadCSVReport()" style="display: none;">
-      📥 تحميل تقرير الدخول (Excel / CSV)
+      📥 تحميل تقرير الدخول (Excel)
     </button>
     <button class="btn btn-clear" onclick="clearReport()">🗑️ مسح سجل الفعالية بالكامل</button>
 
-    <div style="margin-top:25px; text-align:right;">
-      <h3 style="color: #c9a24b; font-size: 16px; margin-bottom: 5px;">📊 سجل الحضور المباشر:</h3>
+    <div style="margin-top:20px; text-align:right;">
+      <h3 style="color: #c9a24b; font-size: 15px; margin-bottom: 5px;">📊 سجل الحضور المباشر:</h3>
       <table>
         <thead>
           <tr>
             <th>الاسم</th>
-            <th>حالة الدخول</th>
+            <th>الحالة</th>
             <th>الوقت</th>
           </tr>
         </thead>
         <tbody id="reportTableBody">
-          <tr><td colspan="3" style="color:#777;">جاري الاتصال بالسحابة...</td></tr>
+          <tr><td colspan="3" style="color:#777;">جاري التحميل...</td></tr>
         </tbody>
       </table>
     </div>
@@ -180,9 +160,10 @@
 
     let scannedLogs = [];
     let entryTracker = {}; 
-    let html5QrcodeScanner;
+    let html5QrCode = null;
     let isProcessing = false;
 
+    // 1. مزامنة قاعدة البيانات والسحابة
     function listenToCloudDatabase() {
       db.collection("event_scans").orderBy("timestamp", "asc").onSnapshot((snapshot) => {
         scannedLogs = [];
@@ -204,12 +185,13 @@
         updateReportTable();
         document.getElementById('downloadReportBtn').style.display = scannedLogs.length > 0 ? 'block' : 'none';
       }, (error) => {
-        console.error("خطأ الاتصال:", error);
-        document.getElementById('cloudStatusText').innerText = "❌ تعذر الاتصال بالسحابة";
+        console.error(error);
+        document.getElementById('cloudStatusText').innerText = "❌ خطأ بالاتصال";
         document.getElementById('cloudStatusText').style.color = "#ff4d6d";
       });
     }
 
+    // 2. معالجة المسح المباشر ومنع التعليق
     async function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
@@ -229,20 +211,16 @@
 
         if (currentCount <= maxAllowed) {
           isAccepted = true;
-          if (currentCount === 1 && maxAllowed === 1) {
-            resultBox.className = "result-card success";
-            resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}`;
-          } else {
-            resultBox.className = "result-card warning";
-            resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount} من ${maxAllowed})</strong><br>الاسم: ${name}`;
-          }
+          resultBox.className = "result-card " + (currentCount === 1 && maxAllowed === 1 ? "success" : "warning");
+          resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount}/${maxAllowed})</strong><br>الاسم: ${name}`;
           statusText = `دخول مقبولة (${currentCount}/${maxAllowed})`;
         } else {
           resultBox.className = "result-card duplicate";
-          resultBox.innerHTML = `⚠️ <strong>تنبيه: تجاوز الحد المسموح!</strong><br>الاسم: ${name}<br>(تم استنفاذ دخول ${maxAllowed} أشخاص من قبل)`;
-          statusText = `⚠️ محاولة دخول مكررة (مكتمل ${maxAllowed}/${maxAllowed})`;
+          resultBox.innerHTML = `⚠️ <strong>تجاوز الحد المسموح!</strong><br>الاسم: ${name}`;
+          statusText = `⚠️ محاولة مكررة (${maxAllowed}/${maxAllowed})`;
         }
 
+        // الحفظ في السحابة
         await db.collection("event_scans").add({
           name: name,
           status: statusText,
@@ -252,8 +230,9 @@
         });
 
       } catch (e) {
-        console.error("خطأ أثناء الحفظ:", e);
+        console.error(e);
       } finally {
+        // إعادة استجابة القارئ بعد ثانية واحدة فوراً
         setTimeout(() => {
           isProcessing = false;
         }, 1000);
@@ -265,7 +244,6 @@
       let name = parts[0] ? parts[0].trim() : text.trim();
       let maxAllowed = parts[1] ? parseInt(parts[1], 10) : 1;
       if (isNaN(maxAllowed) || maxAllowed < 1) maxAllowed = 1;
-
       return { name: name, maxAllowed: maxAllowed };
     }
 
@@ -274,7 +252,7 @@
       tbody.innerHTML = "";
 
       if (scannedLogs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="color:#777;">لا توجد عمليات دخول مسجلة</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" style="color:#777;">لا توجد سجلات</td></tr>`;
         return;
       }
 
@@ -286,7 +264,7 @@
           <tr>
             <td><strong>${log.name}</strong></td>
             <td class="${statusClass}">${log.status}</td>
-            <td style="color:#aaa; font-size:12px;">${log.time || ''}</td>
+            <td style="color:#aaa; font-size:11px;">${log.time || ''}</td>
           </tr>
         `;
         tbody.insertAdjacentHTML('beforeend', rowHtml);
@@ -295,54 +273,58 @@
 
     function downloadCSVReport() {
       if (scannedLogs.length === 0) return;
-
       let csvContent = "\uFEFFالاسم,الحالة,الوقت\n";
       scannedLogs.forEach(log => {
         csvContent += `"${log.name}","${log.status}","${log.time || ''}"\n`;
       });
-
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `تقرير_دخول_الضيوف.csv`;
+      link.download = `تقرير_الدخول.csv`;
       link.click();
     }
 
     async function clearReport() {
-      if (confirm("هل أنت تأكد من مسح كافة بيانات الدخول السحابية لهذه الفعالية؟")) {
+      if (confirm("مسح كافة بيانات الدخول وتصفير السجل؟")) {
         try {
           const snapshot = await db.collection("event_scans").get();
           const batch = db.batch();
           snapshot.docs.forEach(doc => batch.delete(doc.ref));
           await batch.commit();
-
           document.getElementById('resultBox').style.display = 'none';
-          document.getElementById('downloadReportBtn').style.display = 'none';
           document.getElementById('totalVisitorsCount').innerText = "0";
-          alert("تم مسح السجل والعداد بنجاح.");
+          alert("تم المسح والتصفير بنجاح.");
         } catch (e) {
-          console.error("خطأ عند المسح: ", e);
-          alert("تعذر المسح، تأكد من صلاحيات Firestore Rules.");
+          alert("خطأ أثناء المسح.");
         }
       }
     }
 
+    // 3. تشغيل الكاميرا الخلفية للجوال فوراً وتلقائياً
     window.onload = function() {
       listenToCloudDatabase();
 
-      html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader", 
-        { 
-          fps: 10, 
-          qrbox: 250,
-          rememberLastUsedCamera: true,
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
-        }, 
-        false
-      );
+      html5QrCode = new Html5Qrcode("reader");
       
-      html5QrcodeScanner.render(onScanSuccess);
+      const cameraConfig = { 
+        fps: 15, 
+        qrbox: { width: 220, height: 220 } 
+      };
+
+      // إجبار الكاميرا الخلفية مباشرة دون خيارات
+      html5QrCode.start(
+        { facingMode: { exact: "environment" } }, 
+        cameraConfig, 
+        onScanSuccess
+      ).catch(err => {
+        // خيار احتياطي في حال رفض نظام أندرويد كلمة exact
+        html5QrCode.start(
+          { facingMode: "environment" }, 
+          cameraConfig, 
+          onScanSuccess
+        ).catch(e => console.error("تعذر فتح الكاميرا:", e));
+      });
     };
   </script>
 </body>
