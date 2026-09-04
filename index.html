@@ -8,10 +8,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   
-  <!-- مكتبة مسح الباركود -->
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- مكتبة مسح الباركود المحدثة والسريعة -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
-  <!-- مكتبات Firebase Compat لتفادي التعليق وحدوث الأخطاء -->
+  <!-- مكتبات Firebase السحابية -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
@@ -42,12 +42,39 @@
     h2 { color: #c9a24b; margin-bottom: 5px; font-size: 22px; }
     .cloud-status { font-size: 13px; color: #52b788; margin-bottom: 15px; font-weight: bold; }
 
+    .visitors-counter-card {
+      background: linear-gradient(135deg, #1f2937, #111827);
+      border: 2px solid #c9a24b;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(201, 162, 75, 0.2);
+    }
+
+    .visitors-title {
+      font-size: 14px;
+      color: #d1d5db;
+      margin-bottom: 5px;
+    }
+
+    .visitors-count {
+      font-size: 36px;
+      font-weight: 800;
+      color: #c9a24b;
+      line-height: 1;
+    }
+
     #reader {
       width: 100%;
       border-radius: 12px;
       overflow: hidden;
       border: 2px solid #333;
       margin-bottom: 15px;
+      background: #000;
     }
 
     .result-card {
@@ -107,6 +134,11 @@
     <h2>📷 ماسح بطاقات الدخول</h2>
     <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة (جاهز للعمل)</div>
     
+    <div class="visitors-counter-card">
+      <div class="visitors-title">👥 إجمالي عدد الزوار الداخلين حتى الآن</div>
+      <div class="visitors-count" id="totalVisitorsCount">0</div>
+    </div>
+
     <div id="reader"></div>
     <div id="resultBox" class="result-card"></div>
 
@@ -126,14 +158,13 @@
           </tr>
         </thead>
         <tbody id="reportTableBody">
-          <tr><td colspan="3" style="color:#777;">جاري تحميل البيانات...</td></tr>
+          <tr><td colspan="3" style="color:#777;">جاري الاتصال بالسحابة...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
   <script>
-    // 1. مفاتيح Firebase الخاصة بك
     const firebaseConfig = {
       apiKey: "AIzaSyCCQplTFGNLBJKm98arjZgpDNmg66bZAM0",
       authDomain: "almead-7c90d.firebaseapp.com",
@@ -144,7 +175,6 @@
       measurementId: "G-7WLNW3CL57"
     };
 
-    // تهيئة السحابة
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
@@ -153,11 +183,11 @@
     let html5QrcodeScanner;
     let isProcessing = false;
 
-    // 2. الاستماع المباشر للسحابة
     function listenToCloudDatabase() {
       db.collection("event_scans").orderBy("timestamp", "asc").onSnapshot((snapshot) => {
         scannedLogs = [];
         entryTracker = {};
+        let totalAcceptedVisitors = 0;
 
         snapshot.forEach((doc) => {
           const data = doc.data();
@@ -166,9 +196,11 @@
 
           if (data.isAccepted) {
             entryTracker[data.name] = (entryTracker[data.name] || 0) + 1;
+            totalAcceptedVisitors++;
           }
         });
 
+        document.getElementById('totalVisitorsCount').innerText = totalAcceptedVisitors;
         updateReportTable();
         document.getElementById('downloadReportBtn').style.display = scannedLogs.length > 0 ? 'block' : 'none';
       }, (error) => {
@@ -178,7 +210,6 @@
       });
     }
 
-    // 3. معالجة وتخزين المسح دون التعليق
     async function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
@@ -200,7 +231,7 @@
           isAccepted = true;
           if (currentCount === 1 && maxAllowed === 1) {
             resultBox.className = "result-card success";
-            resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(دخول شخص واحد)`;
+            resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}`;
           } else {
             resultBox.className = "result-card warning";
             resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount} من ${maxAllowed})</strong><br>الاسم: ${name}`;
@@ -212,7 +243,6 @@
           statusText = `⚠️ محاولة دخول مكررة (مكتمل ${maxAllowed}/${maxAllowed})`;
         }
 
-        // حفظ السجل فوراً في السحابة
         await db.collection("event_scans").add({
           name: name,
           status: statusText,
@@ -222,12 +252,11 @@
         });
 
       } catch (e) {
-        console.error("خطأ:", e);
+        console.error("خطأ أثناء الحفظ:", e);
       } finally {
-        // فك التعليق تلقائياً بعد ثانية ونصف لقراءة الباركود التالي فوراً
         setTimeout(() => {
           isProcessing = false;
-        }, 1500);
+        }, 1000);
       }
     }
 
@@ -290,7 +319,8 @@
 
           document.getElementById('resultBox').style.display = 'none';
           document.getElementById('downloadReportBtn').style.display = 'none';
-          alert("تم مسح السجل بنجاح.");
+          document.getElementById('totalVisitorsCount').innerText = "0";
+          alert("تم مسح السجل والعداد بنجاح.");
         } catch (e) {
           console.error("خطأ عند المسح: ", e);
           alert("تعذر المسح، تأكد من صلاحيات Firestore Rules.");
@@ -300,7 +330,18 @@
 
     window.onload = function() {
       listenToCloudDatabase();
-      html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+
+      html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader", 
+        { 
+          fps: 10, 
+          qrbox: 250,
+          rememberLastUsedCamera: true,
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+        }, 
+        false
+      );
+      
       html5QrcodeScanner.render(onScanSuccess);
     };
   </script>
