@@ -11,6 +11,10 @@
   <!-- مكتبة مسح الباركود -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
+  <!-- مكتبات Firebase Compat لتفادي التعليق وحدوث الأخطاء -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -96,209 +100,12 @@
       to { opacity: 1; transform: translateY(0); }
     }
   </style>
-
-  <!-- Firebase Modular SDK v9 -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { 
-      getFirestore, 
-      collection, 
-      addDoc, 
-      getDocs, 
-      deleteDoc, 
-      doc, 
-      onSnapshot, 
-      query, 
-      orderBy, 
-      serverTimestamp 
-    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
-
-    // 1. مفاتيح المشروع في Firebase
-    const firebaseConfig = {
-      apiKey: "AIzaSyCCQplTFGNLBJKm98arjZgpDNmg66bZAM0",
-      authDomain: "almead-7c90d.firebaseapp.com",
-      projectId: "almead-7c90d",
-      storageBucket: "almead-7c90d.firebasestorage.app",
-      messagingSenderId: "560427791112",
-      appId: "1:560427791112:web:1335dac89da1f8673cb2bd",
-      measurementId: "G-7WLNW3CL57"
-    };
-
-    // تهيئة السحابة
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    let scannedLogs = [];
-    let entryTracker = {}; 
-    let html5QrcodeScanner;
-    let isProcessing = false;
-
-    // 2. ربط القراءة الحية والمباشرة بالسحابة (تضمن استرجاع البيانات عند الريفريش)
-    function listenToCloudDatabase() {
-      const q = query(collection(db, "event_scans"), orderBy("timestamp", "asc"));
-      
-      onSnapshot(q, (snapshot) => {
-        scannedLogs = [];
-        entryTracker = {};
-
-        snapshot.forEach((docSnapshot) => {
-          const data = docSnapshot.data();
-          data.id = docSnapshot.id;
-          scannedLogs.push(data);
-
-          if (data.isAccepted) {
-            entryTracker[data.name] = (entryTracker[data.name] || 0) + 1;
-          }
-        });
-
-        updateReportTable();
-        
-        const downloadBtn = document.getElementById('downloadReportBtn');
-        if (scannedLogs.length > 0) {
-          downloadBtn.style.display = 'block';
-        } else {
-          downloadBtn.style.display = 'none';
-        }
-      }, (error) => {
-        console.error("خطأ الاتصال بقاعدة البيانات:", error);
-        document.getElementById('cloudStatusText').innerText = "❌ خطأ في الاتصال بالسحابة";
-        document.getElementById('cloudStatusText').style.color = "#ff4d6d";
-      });
-    }
-
-    // 3. معالجة وتخزين المسح في السحابة
-    async function onScanSuccess(decodedText) {
-      if (isProcessing) return;
-      isProcessing = true;
-
-      let parsedData = parseDecodedData(decodedText);
-      let name = parsedData.name;
-      let maxAllowed = parsedData.maxAllowed;
-
-      let currentTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const resultBox = document.getElementById('resultBox');
-      resultBox.style.display = 'block';
-
-      let currentCount = (entryTracker[name] || 0) + 1;
-      let isAccepted = false;
-      let statusText = "";
-
-      if (currentCount <= maxAllowed) {
-        isAccepted = true;
-        if (currentCount === 1 && maxAllowed === 1) {
-          resultBox.className = "result-card success";
-          resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(دخول شخص واحد)`;
-        } else {
-          resultBox.className = "result-card warning";
-          resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount} من ${maxAllowed})</strong><br>الاسم: ${name}`;
-        }
-        statusText = `دخول مقبولة (${currentCount}/${maxAllowed})`;
-      } else {
-        resultBox.className = "result-card duplicate";
-        resultBox.innerHTML = `⚠️ <strong>تنبيه: تجاوز الحد المسموح!</strong><br>الاسم: ${name}<br>(تم استنفاذ دخول ${maxAllowed} أشخاص من قبل)`;
-        statusText = `⚠️ محاولة دخول مكررة (مكتمل ${maxAllowed}/${maxAllowed})`;
-      }
-
-      // حفظ السجل في السحابة فوراً
-      try {
-        await addDoc(collection(db, "event_scans"), {
-          name: name,
-          status: statusText,
-          time: currentTime,
-          isAccepted: isAccepted,
-          timestamp: serverTimestamp()
-        });
-      } catch (e) {
-        console.error("خطأ أثناء حفظ البيانات السحابية: ", e);
-        alert("لم يتم الحفظ في السحابة، تأكد من إعدادات القواعد Rules في Firebase");
-      }
-
-      setTimeout(() => {
-        isProcessing = false;
-      }, 2500);
-    }
-
-    function parseDecodedData(text) {
-      let parts = text.split('|');
-      let name = parts[0] ? parts[0].trim() : text.trim();
-      let maxAllowed = parts[1] ? parseInt(parts[1], 10) : 1;
-      if (isNaN(maxAllowed) || maxAllowed < 1) maxAllowed = 1;
-
-      return { name: name, maxAllowed: maxAllowed };
-    }
-
-    function updateReportTable() {
-      const tbody = document.getElementById('reportTableBody');
-      tbody.innerHTML = "";
-
-      if (scannedLogs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="color:#777;">لا توجد عمليات دخول مسجلة بالسحابة</td></tr>`;
-        return;
-      }
-
-      [...scannedLogs].reverse().forEach(log => {
-        let isDup = log.status.includes("مكررة");
-        let statusClass = isDup ? "tag-duplicate" : (log.status.includes("1/1") ? "tag-success" : "tag-warning");
-
-        let rowHtml = `
-          <tr>
-            <td><strong>${log.name}</strong></td>
-            <td class="${statusClass}">${log.status}</td>
-            <td style="color:#aaa; font-size:12px;">${log.time || ''}</td>
-          </tr>
-        `;
-        tbody.insertAdjacentHTML('beforeend', rowHtml);
-      });
-    }
-
-    // زر التحميل Excel
-    window.downloadCSVReport = function() {
-      if (scannedLogs.length === 0) return;
-
-      let csvContent = "\uFEFFالاسم,الحالة,الوقت\n";
-      scannedLogs.forEach(log => {
-        csvContent += `"${log.name}","${log.status}","${log.time || ''}"\n`;
-      });
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `تقرير_دخول_الضيوف.csv`;
-      link.click();
-    };
-
-    // زر مسح السجل بالكامل من السحابة
-    window.clearReport = async function() {
-      if (confirm("هل أنت تأكد من مسح كافة بيانات الدخول السحابية لهذه الفعالية؟")) {
-        try {
-          const snapshot = await getDocs(collection(db, "event_scans"));
-          const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, "event_scans", docSnap.id)));
-          await Promise.all(deletePromises);
-
-          document.getElementById('resultBox').style.display = 'none';
-          document.getElementById('downloadReportBtn').style.display = 'none';
-          alert("تم مسح قاعدة البيانات السحابية بنجاح.");
-        } catch (e) {
-          console.error("خطأ أثناء مسح البيانات: ", e);
-          alert("تعذر مسح البيانات السحابية. يرجى مراجعة صلاحيات Firestore Rules.");
-        }
-      }
-    };
-
-    // تشغيل التطبيق والكاميرا
-    window.addEventListener('DOMContentLoaded', () => {
-      listenToCloudDatabase();
-      html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
-      html5QrcodeScanner.render(onScanSuccess);
-    });
-  </script>
 </head>
 <body>
 
   <div class="container">
     <h2>📷 ماسح بطاقات الدخول</h2>
-    <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة (يتم الحفظ تلقائياً)</div>
+    <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة (جاهز للعمل)</div>
     
     <div id="reader"></div>
     <div id="resultBox" class="result-card"></div>
@@ -319,11 +126,183 @@
           </tr>
         </thead>
         <tbody id="reportTableBody">
-          <tr><td colspan="3" style="color:#777;">جاري الاتصال بالسحابة...</td></tr>
+          <tr><td colspan="3" style="color:#777;">جاري تحميل البيانات...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
+  <script>
+    // 1. مفاتيح Firebase الخاصة بك
+    const firebaseConfig = {
+      apiKey: "AIzaSyCCQplTFGNLBJKm98arjZgpDNmg66bZAM0",
+      authDomain: "almead-7c90d.firebaseapp.com",
+      projectId: "almead-7c90d",
+      storageBucket: "almead-7c90d.firebasestorage.app",
+      messagingSenderId: "560427791112",
+      appId: "1:560427791112:web:1335dac89da1f8673cb2bd",
+      measurementId: "G-7WLNW3CL57"
+    };
+
+    // تهيئة السحابة
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let scannedLogs = [];
+    let entryTracker = {}; 
+    let html5QrcodeScanner;
+    let isProcessing = false;
+
+    // 2. الاستماع المباشر للسحابة
+    function listenToCloudDatabase() {
+      db.collection("event_scans").orderBy("timestamp", "asc").onSnapshot((snapshot) => {
+        scannedLogs = [];
+        entryTracker = {};
+
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          data.id = doc.id;
+          scannedLogs.push(data);
+
+          if (data.isAccepted) {
+            entryTracker[data.name] = (entryTracker[data.name] || 0) + 1;
+          }
+        });
+
+        updateReportTable();
+        document.getElementById('downloadReportBtn').style.display = scannedLogs.length > 0 ? 'block' : 'none';
+      }, (error) => {
+        console.error("خطأ الاتصال:", error);
+        document.getElementById('cloudStatusText').innerText = "❌ تعذر الاتصال بالسحابة";
+        document.getElementById('cloudStatusText').style.color = "#ff4d6d";
+      });
+    }
+
+    // 3. معالجة وتخزين المسح دون التعليق
+    async function onScanSuccess(decodedText) {
+      if (isProcessing) return;
+      isProcessing = true;
+
+      try {
+        let parsedData = parseDecodedData(decodedText);
+        let name = parsedData.name;
+        let maxAllowed = parsedData.maxAllowed;
+
+        let currentTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const resultBox = document.getElementById('resultBox');
+        resultBox.style.display = 'block';
+
+        let currentCount = (entryTracker[name] || 0) + 1;
+        let isAccepted = false;
+        let statusText = "";
+
+        if (currentCount <= maxAllowed) {
+          isAccepted = true;
+          if (currentCount === 1 && maxAllowed === 1) {
+            resultBox.className = "result-card success";
+            resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(دخول شخص واحد)`;
+          } else {
+            resultBox.className = "result-card warning";
+            resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount} من ${maxAllowed})</strong><br>الاسم: ${name}`;
+          }
+          statusText = `دخول مقبولة (${currentCount}/${maxAllowed})`;
+        } else {
+          resultBox.className = "result-card duplicate";
+          resultBox.innerHTML = `⚠️ <strong>تنبيه: تجاوز الحد المسموح!</strong><br>الاسم: ${name}<br>(تم استنفاذ دخول ${maxAllowed} أشخاص من قبل)`;
+          statusText = `⚠️ محاولة دخول مكررة (مكتمل ${maxAllowed}/${maxAllowed})`;
+        }
+
+        // حفظ السجل فوراً في السحابة
+        await db.collection("event_scans").add({
+          name: name,
+          status: statusText,
+          time: currentTime,
+          isAccepted: isAccepted,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+      } catch (e) {
+        console.error("خطأ:", e);
+      } finally {
+        // فك التعليق تلقائياً بعد ثانية ونصف لقراءة الباركود التالي فوراً
+        setTimeout(() => {
+          isProcessing = false;
+        }, 1500);
+      }
+    }
+
+    function parseDecodedData(text) {
+      let parts = text.split('|');
+      let name = parts[0] ? parts[0].trim() : text.trim();
+      let maxAllowed = parts[1] ? parseInt(parts[1], 10) : 1;
+      if (isNaN(maxAllowed) || maxAllowed < 1) maxAllowed = 1;
+
+      return { name: name, maxAllowed: maxAllowed };
+    }
+
+    function updateReportTable() {
+      const tbody = document.getElementById('reportTableBody');
+      tbody.innerHTML = "";
+
+      if (scannedLogs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="color:#777;">لا توجد عمليات دخول مسجلة</td></tr>`;
+        return;
+      }
+
+      [...scannedLogs].reverse().forEach(log => {
+        let isDup = log.status.includes("مكررة");
+        let statusClass = isDup ? "tag-duplicate" : (log.status.includes("1/1") ? "tag-success" : "tag-warning");
+
+        let rowHtml = `
+          <tr>
+            <td><strong>${log.name}</strong></td>
+            <td class="${statusClass}">${log.status}</td>
+            <td style="color:#aaa; font-size:12px;">${log.time || ''}</td>
+          </tr>
+        `;
+        tbody.insertAdjacentHTML('beforeend', rowHtml);
+      });
+    }
+
+    function downloadCSVReport() {
+      if (scannedLogs.length === 0) return;
+
+      let csvContent = "\uFEFFالاسم,الحالة,الوقت\n";
+      scannedLogs.forEach(log => {
+        csvContent += `"${log.name}","${log.status}","${log.time || ''}"\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `تقرير_دخول_الضيوف.csv`;
+      link.click();
+    }
+
+    async function clearReport() {
+      if (confirm("هل أنت تأكد من مسح كافة بيانات الدخول السحابية لهذه الفعالية؟")) {
+        try {
+          const snapshot = await db.collection("event_scans").get();
+          const batch = db.batch();
+          snapshot.docs.forEach(doc => batch.delete(doc.ref));
+          await batch.commit();
+
+          document.getElementById('resultBox').style.display = 'none';
+          document.getElementById('downloadReportBtn').style.display = 'none';
+          alert("تم مسح السجل بنجاح.");
+        } catch (e) {
+          console.error("خطأ عند المسح: ", e);
+          alert("تعذر المسح، تأكد من صلاحيات Firestore Rules.");
+        }
+      }
+    }
+
+    window.onload = function() {
+      listenToCloudDatabase();
+      html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+      html5QrcodeScanner.render(onScanSuccess);
+    };
+  </script>
 </body>
 </html>
