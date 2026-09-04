@@ -107,6 +107,7 @@
 
     <!-- شاشة الكاميرا المباشرة -->
     <div id="reader"></div>
+    <div id="scanStatus" style="font-size:11px; color:#888; margin-top:6px;">⏳ بانتظار بدء التشغيل...</div>
     <div id="cameraError" class="camera-error"></div>
     <button id="retryBtn" class="btn btn-retry" onclick="startScanner()" style="display:none;">
       🔄 إعادة محاولة تشغيل الكاميرا
@@ -192,6 +193,8 @@
         let currentTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const resultBox = document.getElementById('resultBox');
         resultBox.style.display = 'block';
+        const statusEl = document.getElementById('scanStatus');
+        if (statusEl) statusEl.innerText = "✅ تم فك تشفير QR بنجاح آخر مرة الساعة " + currentTime;
 
         let currentCount = (entryTracker[displayTitle] || 0) + 1;
         let isAccepted = true;
@@ -294,15 +297,30 @@
     // على الشاشات الصغيرة أو الوضع الرأسي بالموبايل
     function dynamicQrbox(viewfinderWidth, viewfinderHeight) {
       const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-      const size = Math.floor(minEdge * 0.7);
+      const size = Math.floor(minEdge * 0.8);
       return { width: size, height: size };
     }
 
+    // ملاحظة: ما نحدد aspectRatio لأنه يجبر بعض أجهزة الأندرويد على دقة
+    // منخفضة/مشوّهة تخلي فك التشفير شبه مستحيل رغم ظهور الفيديو بوضوح
     const cameraConfig = {
       fps: 10,
-      qrbox: dynamicQrbox,
-      aspectRatio: 1.0
+      qrbox: dynamicQrbox
     };
+
+    let lastScanAttemptTime = Date.now();
+    let scanAttemptCount = 0;
+
+    // يُستدعى مع كل فريم يفشل بفك التشفير - نستخدمه فقط كدليل حي إن
+    // المكتبة تحاول القراءة فعلاً (مو متوقفة بصمت)
+    function onScanFailure(error) {
+      scanAttemptCount++;
+      lastScanAttemptTime = Date.now();
+      const statusEl = document.getElementById('scanStatus');
+      if (statusEl) {
+        statusEl.innerText = `🔍 المكتبة تحاول القراءة... (${scanAttemptCount} محاولة، ما فيه QR بالإطار حالياً)`;
+      }
+    }
 
     async function startScanner() {
       hideCameraError();
@@ -332,8 +350,10 @@
         await html5QrCode.start(
           selectedCamera.id,
           cameraConfig,
-          onScanSuccess
+          onScanSuccess,
+          onScanFailure
         );
+        document.getElementById('scanStatus').innerText = "✅ الكاميرا شغالة، وجّهها نحو الـ QR...";
 
       } catch (err) {
         console.error("خطأ تشغيل الكاميرا:", err);
@@ -343,9 +363,11 @@
           await html5QrCode.start(
             { facingMode: "environment" },
             cameraConfig,
-            onScanSuccess
+            onScanSuccess,
+            onScanFailure
           );
           hideCameraError();
+          document.getElementById('scanStatus').innerText = "✅ الكاميرا شغالة، وجّهها نحو الـ QR...";
         } catch (err2) {
           console.error("فشلت المحاولة البديلة:", err2);
           let msg = "تعذر تشغيل الكاميرا. ";
