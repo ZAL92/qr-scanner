@@ -186,6 +186,13 @@
       if (isProcessing) return;
       isProcessing = true;
 
+      // نوقف حلقة قراءة الكاميرا فوراً وقت الكتابة لـ Firebase - هذا يمنع
+      // التزاحم بين محاولات القراءة المستمرة (10 مرات بالثانية) وعملية
+      // الكتابة، اللي هي السبب الحقيقي للتجمد بعد كم مسح متتالي
+      if (html5QrCode) {
+        try { html5QrCode.pause(true); } catch (e) { /* already paused/stopped */ }
+      }
+
       try {
         let cleanText = decodedText ? decodedText.trim() : "بطاقة غير معروفة";
         let displayTitle = cleanText.split('|')[0].trim();
@@ -223,6 +230,11 @@
       } finally {
         setTimeout(() => {
           isProcessing = false;
+          // نكمّل القراءة بعد ما خلصت الكتابة وبعد فترة قصيرة تمنع
+          // إعادة قراءة نفس الكود اللي لسا موجود قدام الكاميرا
+          if (html5QrCode) {
+            try { html5QrCode.resume(); } catch (e) { /* not paused */ }
+          }
         }, 1200);
       }
     }
@@ -324,6 +336,13 @@
 
     async function startScanner() {
       hideCameraError();
+
+      // منع تشغيل الكاميرا مرتين بنفس الوقت (مثلاً لو ضغط المستخدم زر
+      // إعادة المحاولة والكاميرا أصلاً شغالة) - هذا كان يسبب تجمد شبيه
+      if (html5QrCode && html5QrCode.getState && html5QrCode.getState() === Html5QrcodeScannerState.SCANNING) {
+        console.log("الكاميرا شغالة أصلاً، تجاهل الطلب");
+        return;
+      }
 
       if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         showCameraError("لازم تفتح الصفحة عبر رابط HTTPS حتى تشتغل الكاميرا (المتصفحات تمنع الكاميرا على HTTP).");
