@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>نظام فحص الباركود الذكي - إدارة الدعوات</title>
-  
+  <title>ماسح الباركود - الميعاد</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- مكتبة مسح الباركود -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0d0d0d;
+      background: #121212;
       color: #ffffff;
       font-family: 'Cairo', sans-serif;
-      padding: 15px;
+      padding: 20px 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -25,384 +27,303 @@
 
     .container {
       width: 100%;
-      max-width: 480px;
-      background: #181818;
-      border-radius: 20px;
-      padding: 20px;
-      box-shadow: 0 15px 35px rgba(0,0,0,0.7);
-      text-align: center;
-      border: 1px solid #2a2a2a;
-    }
-
-    h2 { color: #c9a24b; margin-bottom: 15px; font-size: 20px; font-weight: 800; }
-
-    .stats-bar {
-      display: flex;
-      justify-content: space-between;
-      background: #222;
-      padding: 10px 15px;
-      border-radius: 12px;
-      margin-bottom: 15px;
-      border: 1px solid #333;
-    }
-
-    .stat-item { text-align: center; }
-    .stat-item .num { font-size: 18px; font-weight: bold; color: #c9a24b; }
-    .stat-item .label { font-size: 11px; color: #aaa; }
-
-    #reader-wrapper {
-      position: relative;
-      width: 100%;
+      max-width: 500px;
+      background: #1e1e1e;
       border-radius: 16px;
-      overflow: hidden;
-      border: 3px solid #333;
-      margin-bottom: 15px;
-      background: #000;
-      transition: border-color 0.3s ease;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      text-align: center;
     }
 
-    #reader { width: 100%; }
-    #reader select, #reader button { display: none !important; }
+    h2 { color: #c9a24b; margin-bottom: 5px; font-size: 22px; }
+    .cloud-status { font-size: 13px; color: #52b788; margin-bottom: 15px; font-weight: bold; }
+
+    #reader {
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid #333;
+      margin-bottom: 15px;
+    }
 
     .result-card {
       padding: 15px;
-      border-radius: 12px;
+      border-radius: 10px;
       margin-top: 15px;
       font-weight: bold;
       display: none;
-      font-size: 15px;
-      animation: pulse 0.3s ease-in-out;
+      animation: fadeIn 0.3s ease-in-out;
     }
 
-    .success { background: #133a27; color: #52b788; border: 2px solid #2d6a4f; }
-    .warning { background: #0c3852; color: #38bdf8; border: 2px solid #0284c7; }
+    .success { background: #1b4332; color: #74c69d; border: 1px solid #2d6a4f; }
+    .warning { background: #0c4a6e; color: #38bdf8; border: 1px solid #0284c7; }
     .duplicate { background: #4a0e17; color: #ff8fa3; border: 2px solid #ff4d6d; }
 
     .btn {
       background: #c9a24b;
       color: #000;
       border: none;
-      padding: 12px;
-      border-radius: 10px;
+      padding: 12px 20px;
+      border-radius: 8px;
       font-weight: bold;
-      font-size: 14px;
+      font-size: 15px;
       cursor: pointer;
       width: 100%;
       margin-top: 10px;
-      transition: opacity 0.2s;
     }
 
-    .btn:active { opacity: 0.8; }
     .btn-excel { background: #2d6a4f; color: #fff; }
-    .btn-upload { background: #1d4ed8; color: #fff; }
+    .btn-clear { background: #9a031e; color: #fff; }
 
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
-      background: #222;
-      border-radius: 10px;
+      background: #252525;
+      border-radius: 8px;
       overflow: hidden;
     }
 
-    th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid #333; font-size: 12px; }
-    th { background: #2d2d2d; color: #c9a24b; }
+    th, td { padding: 10px; text-align: center; border-bottom: 1px solid #333; font-size: 13px; }
+    th { background: #333; color: #c9a24b; }
 
     .tag-success { color: #52b788; font-weight: bold; }
     .tag-warning { color: #38bdf8; font-weight: bold; }
     .tag-duplicate { color: #ff4d6d; font-weight: bold; }
 
-    @keyframes pulse {
-      0% { transform: scale(0.98); }
-      50% { transform: scale(1.02); }
-      100% { transform: scale(1); }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
-</head>
-<body>
 
-  <div class="container">
-    <h2>📷 نظام فحص الدخول المباشر</h2>
+  <!-- Firebase Modular SDK v9 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      addDoc, 
+      getDocs, 
+      deleteDoc, 
+      doc, 
+      onSnapshot, 
+      query, 
+      orderBy, 
+      serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-    <!-- زر رفع ملف الأسماء المطابقة -->
-    <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="handleCSVUpload(event)">
-    <button class="btn btn-upload" onclick="document.getElementById('csvFileInput').click()">
-      📂 رفع كشف الأسماء المطابقة (CSV)
-    </button>
+    // 1. مفاتيح المشروع في Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyCCQplTFGNLBJKm98arjZgpDNmg66bZAM0",
+      authDomain: "almead-7c90d.firebaseapp.com",
+      projectId: "almead-7c90d",
+      storageBucket: "almead-7c90d.firebasestorage.app",
+      messagingSenderId: "560427791112",
+      appId: "1:560427791112:web:1335dac89da1f8673cb2bd",
+      measurementId: "G-7WLNW3CL57"
+    };
 
-    <!-- شريط الإحصائيات -->
-    <div class="stats-bar" style="margin-top: 15px;">
-      <div class="stat-item">
-        <div class="num" id="totalAcceptedCount">0</div>
-        <div class="label">إجمالي المقبولين</div>
-      </div>
-      <div class="stat-item">
-        <div class="num" style="color:#ff4d6d;" id="totalRejectedCount">0</div>
-        <div class="label">المرفوض / المكرر</div>
-      </div>
-      <div class="stat-item">
-        <div class="num" style="color:#38bdf8;" id="totalScansCount">0</div>
-        <div class="label">إجمالي العمليات</div>
-      </div>
-    </div>
-    
-    <!-- إطار الكاميرا -->
-    <div id="reader-wrapper">
-      <div id="reader"></div>
-    </div>
+    // تهيئة السحابة
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    <!-- كارت النتيجة -->
-    <div id="resultBox" class="result-card"></div>
-
-    <button id="downloadReportBtn" class="btn btn-excel" onclick="downloadCSVReport()" style="display: none;">
-      📥 تحميل تقرير الحضور (Excel / CSV)
-    </button>
-    <button class="btn" style="background:#333; color:#ccc;" onclick="clearReport()">🗑️ إعادة تصفير السجل</button>
-
-    <div style="margin-top:20px; text-align:right;">
-      <h3 style="color: #c9a24b; font-size: 14px; margin-bottom: 5px;">📊 السجل المباشر:</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>الاسم المعتمد</th>
-            <th>الحالة</th>
-            <th>الوقت</th>
-          </tr>
-        </thead>
-        <tbody id="reportTableBody">
-          <tr><td colspan="3" style="color:#666;">في انتظار أول عملية مسح...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <script>
     let scannedLogs = [];
     let entryTracker = {}; 
-    let guestDatabase = {}; // كشف الأسماء المرفوع من الإكسل
-    let html5QrCode;
+    let html5QrcodeScanner;
+    let isProcessing = false;
 
-    let acceptedCount = 0;
-    let rejectedCount = 0;
+    // 2. ربط القراءة الحية والمباشرة بالسحابة (تضمن استرجاع البيانات عند الريفريش)
+    function listenToCloudDatabase() {
+      const q = query(collection(db, "event_scans"), orderBy("timestamp", "asc"));
+      
+      onSnapshot(q, (snapshot) => {
+        scannedLogs = [];
+        entryTracker = {};
 
-    let isProcessing = false; 
-    const SCAN_DELAY = 3000;  
+        snapshot.forEach((docSnapshot) => {
+          const data = docSnapshot.data();
+          data.id = docSnapshot.id;
+          scannedLogs.push(data);
 
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSound(type) {
-      if (audioCtx.state === 'suspended') { audioCtx.resume(); }
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      if (type === 'success') {
-        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.25);
-      } else {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.3);
-      }
-    }
-
-    // دالة رفع ملف CSV للأسماء المطابقة
-    function handleCSVUpload(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const lines = evt.target.result.split('\n');
-        guestDatabase = {}; // تصفير الجدول القديم
-        let loadedCount = 0;
-
-        lines.forEach(line => {
-          let parts = line.split(',');
-          if (parts.length >= 2) {
-            let qrCodeKey = parts[0].trim();
-            let realName = parts[1].trim();
-            if (qrCodeKey && realName) {
-              guestDatabase[qrCodeKey] = realName;
-              loadedCount++;
-            }
+          if (data.isAccepted) {
+            entryTracker[data.name] = (entryTracker[data.name] || 0) + 1;
           }
         });
 
-        alert(`✅ تم تحميل ${loadedCount} اسم بنجاح من الكشف!`);
-      };
-      reader.readAsText(file, 'UTF-8');
-    }
-
-    function startAutoCamera() {
-      html5QrCode = new Html5Qrcode("reader");
-      const config = { fps: 8, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 };
-
-      html5QrCode.start(
-        { facingMode: "environment" }, 
-        config, 
-        onScanSuccess
-      ).catch(err => {
-        console.error("تعذر فتح الكاميرا تلقائياً:", err);
+        updateReportTable();
+        
+        const downloadBtn = document.getElementById('downloadReportBtn');
+        if (scannedLogs.length > 0) {
+          downloadBtn.style.display = 'block';
+        } else {
+          downloadBtn.style.display = 'none';
+        }
+      }, (error) => {
+        console.error("خطأ الاتصال بقاعدة البيانات:", error);
+        document.getElementById('cloudStatusText').innerText = "❌ خطأ في الاتصال بالسحابة";
+        document.getElementById('cloudStatusText').style.color = "#ff4d6d";
       });
     }
 
-    function onScanSuccess(decodedText, decodedResult) {
+    // 3. معالجة وتخزين المسح في السحابة
+    async function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
 
       let parsedData = parseDecodedData(decodedText);
-      let rawId = parsedData.rawId;       // المفتاح الفريد المميز للكود
-      let name = parsedData.displayName;   // الاسم المطابق من الكشف أو النص المفكك
-      let maxAllowed = parsedData.maxAllowed; 
+      let name = parsedData.name;
+      let maxAllowed = parsedData.maxAllowed;
 
       let currentTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const resultBox = document.getElementById('resultBox');
-      const readerWrapper = document.getElementById('reader-wrapper');
       resultBox.style.display = 'block';
 
-      // تتبع الدخول بناءً على الباركود الفريد
-      let currentCount = (entryTracker[rawId] || 0) + 1;
+      let currentCount = (entryTracker[name] || 0) + 1;
+      let isAccepted = false;
+      let statusText = "";
 
       if (currentCount <= maxAllowed) {
-        entryTracker[rawId] = currentCount;
-        acceptedCount++;
-        playSound('success');
-
-        readerWrapper.style.borderColor = "#2d6a4f"; 
-
-        if (maxAllowed === 1) {
+        isAccepted = true;
+        if (currentCount === 1 && maxAllowed === 1) {
           resultBox.className = "result-card success";
-          resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(دعوة فردية - 1/1)`;
+          resultBox.innerHTML = `✅ <strong>تم دخول الدعوة بنجاح</strong><br>الاسم: ${name}<br>(دخول شخص واحد)`;
         } else {
           resultBox.className = "result-card warning";
           resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount} من ${maxAllowed})</strong><br>الاسم: ${name}`;
         }
-
-        scannedLogs.push({
-          name: name,
-          status: `مقبول (${currentCount}/${maxAllowed})`,
-          time: currentTime
-        });
+        statusText = `دخول مقبولة (${currentCount}/${maxAllowed})`;
       } else {
-        rejectedCount++;
-        playSound('error');
-
-        readerWrapper.style.borderColor = "#ff4d6d"; 
-
         resultBox.className = "result-card duplicate";
-        resultBox.innerHTML = `⚠️ <strong>تنبيه: محاولة دخول مكررة!</strong><br>الاسم: ${name}<br>(تم استنفاذ كامل العدد المسموح: ${maxAllowed}/${maxAllowed})`;
-
-        scannedLogs.push({
-          name: name,
-          status: `⚠️ مكرر (مكتمل ${maxAllowed}/${maxAllowed})`,
-          time: currentTime
-        });
+        resultBox.innerHTML = `⚠️ <strong>تنبيه: تجاوز الحد المسموح!</strong><br>الاسم: ${name}<br>(تم استنفاذ دخول ${maxAllowed} أشخاص من قبل)`;
+        statusText = `⚠️ محاولة دخول مكررة (مكتمل ${maxAllowed}/${maxAllowed})`;
       }
 
-      updateReportTable();
-      updateStats();
-      document.getElementById('downloadReportBtn').style.display = 'block';
+      // حفظ السجل في السحابة فوراً
+      try {
+        await addDoc(collection(db, "event_scans"), {
+          name: name,
+          status: statusText,
+          time: currentTime,
+          isAccepted: isAccepted,
+          timestamp: serverTimestamp()
+        });
+      } catch (e) {
+        console.error("خطأ أثناء حفظ البيانات السحابية: ", e);
+        alert("لم يتم الحفظ في السحابة، تأكد من إعدادات القواعد Rules في Firebase");
+      }
 
       setTimeout(() => {
-        readerWrapper.style.borderColor = "#333";
         isProcessing = false;
-      }, SCAN_DELAY);
+      }, 2500);
     }
 
-    // --- 🔑 الحل الجذري لتفادي تضارب الباركودات المختلفة ---
     function parseDecodedData(text) {
-      let rawText = text.trim();
-      let maxAllowed = 1;
-      let nameCandidate = rawText;
+      let parts = text.split('|');
+      let name = parts[0] ? parts[0].trim() : text.trim();
+      let maxAllowed = parts[1] ? parseInt(parts[1], 10) : 1;
+      if (isNaN(maxAllowed) || maxAllowed < 1) maxAllowed = 1;
 
-      // 1. البحث عن أي رقم في النص ليكون هو عدد الضيوف
-      let parts = rawText.split(/\||-|,|\n/);
-      if (parts.length > 1) {
-        nameCandidate = parts[0].trim();
-        let lastPart = parts[parts.length - 1];
-        let numMatch = lastPart.match(/\d+/);
-        if (numMatch) {
-          let num = parseInt(numMatch[0], 10);
-          if (num > 0) maxAllowed = num;
-        }
-      } else {
-        let match = rawText.match(/(.*?)\s+(\d+)\s*$/);
-        if (match) {
-          nameCandidate = match[1].trim();
-          maxAllowed = parseInt(match[2], 10);
-        }
-      }
-
-      // تنظيف الاسم من التسميات الزائدة
-      nameCandidate = nameCandidate.replace(/^(الاسم|الضيف|اسم المدعو|عدد الضيوف|دعوة)\s*:\s*/i, '').trim();
-
-      // 2. إذا كان هنالك كشف أسماء مرفوع مطبق، نأخذ الاسم الحقيقي منه فوراً
-      let finalDisplayName = guestDatabase[rawText] || guestDatabase[nameCandidate] || nameCandidate;
-
-      return {
-        rawId: rawText,                // النص الكامل لمنع التضارب بين الباركودات
-        displayName: finalDisplayName, // الاسم الذي سيظهر في السجل والتقرير
-        maxAllowed: maxAllowed         // عدد الضيوف
-      };
-    }
-
-    function updateStats() {
-      document.getElementById('totalAcceptedCount').innerText = acceptedCount;
-      document.getElementById('totalRejectedCount').innerText = rejectedCount;
-      document.getElementById('totalScansCount').innerText = scannedLogs.length;
+      return { name: name, maxAllowed: maxAllowed };
     }
 
     function updateReportTable() {
       const tbody = document.getElementById('reportTableBody');
       tbody.innerHTML = "";
 
+      if (scannedLogs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="color:#777;">لا توجد عمليات دخول مسجلة بالسحابة</td></tr>`;
+        return;
+      }
+
       [...scannedLogs].reverse().forEach(log => {
-        let isDup = log.status.includes("مكرر");
+        let isDup = log.status.includes("مكررة");
         let statusClass = isDup ? "tag-duplicate" : (log.status.includes("1/1") ? "tag-success" : "tag-warning");
 
         let rowHtml = `
           <tr>
             <td><strong>${log.name}</strong></td>
             <td class="${statusClass}">${log.status}</td>
-            <td style="color:#aaa; font-size:11px;">${log.time}</td>
+            <td style="color:#aaa; font-size:12px;">${log.time || ''}</td>
           </tr>
         `;
         tbody.insertAdjacentHTML('beforeend', rowHtml);
       });
     }
 
-    function downloadCSVReport() {
+    // زر التحميل Excel
+    window.downloadCSVReport = function() {
       if (scannedLogs.length === 0) return;
-      let csvContent = "\uFEFFالاسم المعتمد,الحالة,الوقت\n";
-      scannedLogs.forEach(log => { csvContent += `"${log.name}","${log.status}","${log.time}"\n`; });
+
+      let csvContent = "\uFEFFالاسم,الحالة,الوقت\n";
+      scannedLogs.forEach(log => {
+        csvContent += `"${log.name}","${log.status}","${log.time || ''}"\n`;
+      });
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `تقرير_حضور_الضيوف.csv`;
+      link.download = `تقرير_دخول_الضيوف.csv`;
       link.click();
-    }
+    };
 
-    function clearReport() {
-      if (confirm("هل أنت متأكد من مسح كافة السجلات والإحصائيات؟")) {
-        scannedLogs = [];
-        entryTracker = {};
-        acceptedCount = 0;
-        rejectedCount = 0;
-        updateStats();
-        document.getElementById('reportTableBody').innerHTML = `<tr><td colspan="3" style="color:#666;">في انتظار أول عملية مسح...</td></tr>`;
-        document.getElementById('resultBox').style.display = 'none';
-        document.getElementById('downloadReportBtn').style.display = 'none';
+    // زر مسح السجل بالكامل من السحابة
+    window.clearReport = async function() {
+      if (confirm("هل أنت تأكد من مسح كافة بيانات الدخول السحابية لهذه الفعالية؟")) {
+        try {
+          const snapshot = await getDocs(collection(db, "event_scans"));
+          const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, "event_scans", docSnap.id)));
+          await Promise.all(deletePromises);
+
+          document.getElementById('resultBox').style.display = 'none';
+          document.getElementById('downloadReportBtn').style.display = 'none';
+          alert("تم مسح قاعدة البيانات السحابية بنجاح.");
+        } catch (e) {
+          console.error("خطأ أثناء مسح البيانات: ", e);
+          alert("تعذر مسح البيانات السحابية. يرجى مراجعة صلاحيات Firestore Rules.");
+        }
       }
-    }
+    };
 
-    window.onload = function() { startAutoCamera(); };
+    // تشغيل التطبيق والكاميرا
+    window.addEventListener('DOMContentLoaded', () => {
+      listenToCloudDatabase();
+      html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+      html5QrcodeScanner.render(onScanSuccess);
+    });
   </script>
+</head>
+<body>
+
+  <div class="container">
+    <h2>📷 ماسح بطاقات الدخول</h2>
+    <div id="cloudStatusText" class="cloud-status">☁️ متصل بالسحابة (يتم الحفظ تلقائياً)</div>
+    
+    <div id="reader"></div>
+    <div id="resultBox" class="result-card"></div>
+
+    <button id="downloadReportBtn" class="btn btn-excel" onclick="downloadCSVReport()" style="display: none;">
+      📥 تحميل تقرير الدخول (Excel / CSV)
+    </button>
+    <button class="btn btn-clear" onclick="clearReport()">🗑️ مسح سجل الفعالية بالكامل</button>
+
+    <div style="margin-top:25px; text-align:right;">
+      <h3 style="color: #c9a24b; font-size: 16px; margin-bottom: 5px;">📊 سجل الحضور المباشر:</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>الاسم</th>
+            <th>حالة الدخول</th>
+            <th>الوقت</th>
+          </tr>
+        </thead>
+        <tbody id="reportTableBody">
+          <tr><td colspan="3" style="color:#777;">جاري الاتصال بالسحابة...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </body>
 </html>
