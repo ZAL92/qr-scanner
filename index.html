@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   
-  <!-- مكتبة الباركود السريعة -->
+  <!-- مكتبة مسح الباركود و QR Code الشاملة -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- مكتبات Firebase -->
@@ -94,7 +94,6 @@
       <div class="visitors-count" id="totalVisitorsCount">0</div>
     </div>
 
-    <!-- شاشة الكاميرا -->
     <div id="reader"></div>
     <div id="resultBox" class="result-card"></div>
 
@@ -139,7 +138,6 @@
     let html5QrCode = null;
     let isProcessing = false;
 
-    // المزامنة مع السحابة
     function listenToCloudDatabase() {
       db.collection("event_scans").orderBy("timestamp", "asc").onSnapshot((snapshot) => {
         scannedLogs = [];
@@ -161,13 +159,12 @@
         updateReportTable();
         document.getElementById('downloadReportBtn').style.display = scannedLogs.length > 0 ? 'block' : 'none';
       }, (error) => {
-        console.error("خطأ في الاتصال بالسحابة:", error);
-        document.getElementById('cloudStatusText').innerText = "❌ خطأ بالاتصال بالـ Firebase (افحص الـ Rules)";
+        console.error("خطأ بالسحابة:", error);
+        document.getElementById('cloudStatusText').innerText = "❌ خطأ بالاتصال بالسحابة";
         document.getElementById('cloudStatusText').style.color = "#ff4d6d";
       });
     }
 
-    // معالجة المسح المباشر مع حماية من التعليق
     async function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
@@ -196,8 +193,7 @@
           statusText = `⚠️ محاولة مكررة (${maxAllowed}/${maxAllowed})`;
         }
 
-        // حفظ القراءة في السحابة مع مهلة أقصاها 3 ثوان لمنع التعليق
-        const savePromise = db.collection("event_scans").add({
+        await db.collection("event_scans").add({
           name: name,
           status: statusText,
           time: currentTime,
@@ -205,19 +201,9 @@
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Firebase Timeout")), 3500)
-        );
-
-        await Promise.race([savePromise, timeoutPromise]);
-
       } catch (e) {
-        console.warn("تنبيه الحفظ:", e.message);
-        if(e.message === "Firebase Timeout") {
-          alert("تنبيه: السحابة بطيئة، يرجى التأكد من شبكة الإنترنت أو تفعيل الـ Rules في Firebase.");
-        }
+        console.error("خطأ الحفظ:", e);
       } finally {
-        // فك تعليق القارئ بعد 1.2 ثانية فوراً
         setTimeout(() => {
           isProcessing = false;
         }, 1200);
@@ -286,12 +272,33 @@
       }
     }
 
-    // تشغيل الكاميرا الخلفية تلقائياً وبشكل مباشر للجوال
     window.onload = function() {
       listenToCloudDatabase();
 
       html5QrCode = new Html5Qrcode("reader");
-      const cameraConfig = { fps: 15, qrbox: { width: 220, height: 220 } };
+      
+      // الكود الشامل لجميع الأنواع (QR Code و Barcode)
+      const cameraConfig = { 
+        fps: 20, 
+        qrbox: { width: 250, height: 250 },
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.AZTEC,
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+          Html5QrcodeSupportedFormats.MAXICODE,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.PDF_417,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION
+        ]
+      };
 
       html5QrCode.start(
         { facingMode: "environment" }, 
