@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   
-  <!-- مكتبة مسح الباركود و QR Code الشاملة -->
+  <!-- مكتبة QrCode الأساسية المستقرة -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- مكتبات Firebase -->
@@ -49,10 +49,10 @@
     .visitors-count { font-size: 34px; font-weight: 800; color: #c9a24b; line-height: 1.1; }
     #reader {
       width: 100%;
-      min-height: 250px;
+      min-height: 280px;
       border-radius: 12px;
       overflow: hidden;
-      border: 2px solid #333;
+      border: 2px solid #c9a24b;
       background: #000;
     }
     .result-card {
@@ -63,7 +63,6 @@
       display: none;
     }
     .success { background: #1b4332; color: #74c69d; border: 1px solid #2d6a4f; }
-    .warning { background: #0c4a6e; color: #38bdf8; border: 1px solid #0284c7; }
     .duplicate { background: #4a0e17; color: #ff8fa3; border: 2px solid #ff4d6d; }
     .btn {
       background: #c9a24b; color: #000; border: none; padding: 12px;
@@ -79,7 +78,6 @@
     th, td { padding: 8px; text-align: center; border-bottom: 1px solid #333; font-size: 12px; }
     th { background: #333; color: #c9a24b; }
     .tag-success { color: #52b788; font-weight: bold; }
-    .tag-warning { color: #38bdf8; font-weight: bold; }
     .tag-duplicate { color: #ff4d6d; font-weight: bold; }
   </style>
 </head>
@@ -94,6 +92,7 @@
       <div class="visitors-count" id="totalVisitorsCount">0</div>
     </div>
 
+    <!-- شاشة الكاميرا المباشرة -->
     <div id="reader"></div>
     <div id="resultBox" class="result-card"></div>
 
@@ -107,7 +106,7 @@
       <table>
         <thead>
           <tr>
-            <th>الاسم</th>
+            <th>بيانات البطاقة</th>
             <th>الحالة</th>
             <th>الوقت</th>
           </tr>
@@ -138,6 +137,7 @@
     let html5QrCode = null;
     let isProcessing = false;
 
+    // المزامنة الحية مع Firebase
     function listenToCloudDatabase() {
       db.collection("event_scans").orderBy("timestamp", "asc").onSnapshot((snapshot) => {
         scannedLogs = [];
@@ -160,41 +160,38 @@
         document.getElementById('downloadReportBtn').style.display = scannedLogs.length > 0 ? 'block' : 'none';
       }, (error) => {
         console.error("خطأ بالسحابة:", error);
-        document.getElementById('cloudStatusText').innerText = "❌ خطأ بالاتصال بالسحابة";
-        document.getElementById('cloudStatusText').style.color = "#ff4d6d";
       });
     }
 
+    // دالة المعالجة البسيطة الشاملة لجميع الأجهزة
     async function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
 
       try {
-        let parsedData = parseDecodedData(decodedText);
-        let name = parsedData.name;
-        let maxAllowed = parsedData.maxAllowed;
+        let cleanText = decodedText ? decodedText.trim() : "بطاقة غير معروفة";
+        let displayTitle = cleanText.split('|')[0].trim();
 
         let currentTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const resultBox = document.getElementById('resultBox');
         resultBox.style.display = 'block';
 
-        let currentCount = (entryTracker[name] || 0) + 1;
-        let isAccepted = false;
-        let statusText = "";
+        let currentCount = (entryTracker[displayTitle] || 0) + 1;
+        let isAccepted = true;
+        let statusText = "تم الدخول بنجاح";
 
-        if (currentCount <= maxAllowed) {
-          isAccepted = true;
-          resultBox.className = "result-card " + (currentCount === 1 && maxAllowed === 1 ? "success" : "warning");
-          resultBox.innerHTML = `✅ <strong>تم تسجيل الدخول (${currentCount}/${maxAllowed})</strong><br>الاسم: ${name}`;
-          statusText = `دخول مقبولة (${currentCount}/${maxAllowed})`;
-        } else {
+        if (currentCount > 1) {
           resultBox.className = "result-card duplicate";
-          resultBox.innerHTML = `⚠️ <strong>تجاوز الحد المسموح!</strong><br>الاسم: ${name}`;
-          statusText = `⚠️ محاولة مكررة (${maxAllowed}/${maxAllowed})`;
+          resultBox.innerHTML = `⚠️ <strong>بطاقة مكررة! (${currentCount})</strong><br>${displayTitle}`;
+          statusText = `دخول مكرر (${currentCount})`;
+        } else {
+          resultBox.className = "result-card success";
+          resultBox.innerHTML = `✅ <strong>تم المسح بنجاح</strong><br>${displayTitle}`;
         }
 
         await db.collection("event_scans").add({
-          name: name,
+          name: displayTitle,
+          fullData: cleanText,
           status: statusText,
           time: currentTime,
           isAccepted: isAccepted,
@@ -202,20 +199,12 @@
         });
 
       } catch (e) {
-        console.error("خطأ الحفظ:", e);
+        console.error("خطأ أثناء معالجة البيانات:", e);
       } finally {
         setTimeout(() => {
           isProcessing = false;
         }, 1200);
       }
-    }
-
-    function parseDecodedData(text) {
-      let parts = text.split('|');
-      let name = parts[0] ? parts[0].trim() : text.trim();
-      let maxAllowed = parts[1] ? parseInt(parts[1], 10) : 1;
-      if (isNaN(maxAllowed) || maxAllowed < 1) maxAllowed = 1;
-      return { name: name, maxAllowed: maxAllowed };
     }
 
     function updateReportTable() {
@@ -228,8 +217,8 @@
       }
 
       [...scannedLogs].reverse().forEach(log => {
-        let isDup = log.status.includes("مكررة");
-        let statusClass = isDup ? "tag-duplicate" : (log.status.includes("1/1") ? "tag-success" : "tag-warning");
+        let isDup = log.status.includes("مكرر");
+        let statusClass = isDup ? "tag-duplicate" : "tag-success";
 
         let rowHtml = `
           <tr>
@@ -244,7 +233,7 @@
 
     function downloadCSVReport() {
       if (scannedLogs.length === 0) return;
-      let csvContent = "\uFEFFالاسم,الحالة,الوقت\n";
+      let csvContent = "\uFEFFالبيانات المقروءة,الحالة,الوقت\n";
       scannedLogs.forEach(log => {
         csvContent += `"${log.name}","${log.status}","${log.time || ''}"\n`;
       });
@@ -272,34 +261,18 @@
       }
     }
 
+    // إعدادات تشغيل قياسية ومتوافقة 100% مع iOS Safari وأندرويد
     window.onload = function() {
       listenToCloudDatabase();
 
       html5QrCode = new Html5Qrcode("reader");
-      
-      // الكود الشامل لجميع الأنواع (QR Code و Barcode)
+
       const cameraConfig = { 
-        fps: 20, 
-        qrbox: { width: 250, height: 250 },
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.AZTEC,
-          Html5QrcodeSupportedFormats.CODABAR,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.CODE_93,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
-          Html5QrcodeSupportedFormats.MAXICODE,
-          Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.PDF_417,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION
-        ]
+        fps: 15,
+        qrbox: { width: 230, height: 230 }
       };
 
+      // استخدام إعداد الكاميرا الخلفية النقي المتوافق مع أبل وأندرويد
       html5QrCode.start(
         { facingMode: "environment" }, 
         cameraConfig, 
